@@ -2,10 +2,12 @@
 
 from steam.enums import IntEnum
 
+# fmt: off
+
 
 class GCGoodbyeReason(IntEnum):
     GCGoingDown: "GCGoodbyeReason" = 1
-    NoSession: "GCGoodbyeReason"    = 2
+    NoSession: "GCGoodbyeReason"   = 2
 
 
 class TradeResponse(IntEnum):
@@ -77,7 +79,7 @@ class ItemFlags(IntEnum):
     Preview: "ItemSlot"     = 1 << 7
 
 
-class Language:
+class Language(IntEnum):
     SOCreate: "Language"                                    = 21
     SOUpdate: "Language"                                    = 22
     SODestroy: "Language"                                   = 23
