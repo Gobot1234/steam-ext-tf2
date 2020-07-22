@@ -40,8 +40,22 @@ class GCState(ConnectionState):
         super().__init__(loop, client, http, **kwargs)
 
     @register_emsg(EMsg.ClientFromGC)
-    async def parse_gc_message(self, msg: MsgProto):
-        print(msg)
+    async def parse_gc_message(self, msg: MsgProto["CMsgGcClient"]):
+        if msg.body.appid != steam.TF2:
+            return
+        try:
+            language = Language(steam.utils.clear_proto_bit(msg.body.msgtype))
+        except ValueError:
+            return log.info(
+                f"Ignoring unknown msg type: {msg.body.msgtype} ({steam.utils.clear_proto_bit(msg.body.msgtype)})"
+            )
+
+        try:
+            func = self.gc_parsers[language]
+        except KeyError:
+            log.debug(f"Ignoring event {repr(msg)}")
+        else:
+            await steam.utils.maybe_coroutine(func, self, msg)
 
     @register(Language.ServerWelcome)
     async def parse_gc_logon(self, msg: MsgProto):
