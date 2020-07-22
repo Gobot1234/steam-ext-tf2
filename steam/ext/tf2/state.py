@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
-from typing import Awaitable, Callable, Dict, Optional, TYPE_CHECKING
+import logging
+from typing import Callable, Dict, TYPE_CHECKING
 
-from steam.state import ConnectionState, register as register_emsg
+import steam
+from steam.state import ConnectionState, register as register_emsg, EventParser
 from steam.protobufs import MsgProto, EMsg
 
 from .enums import Language
@@ -11,8 +13,9 @@ from .enums import Language
 if TYPE_CHECKING:
     from steam import Client
     from steam.http import HTTPClient
+    from steam.protobufs.steammessages_clientserver_2 import CMsgGcClient
 
-EventParser = Callable[["ConnectionState", "MsgProto"], Optional[Awaitable[None]]]
+log = logging.getLogger(__name__)
 
 
 class Registerer:
@@ -36,7 +39,9 @@ def register(language: Language) -> Callable[[EventParser], Registerer]:
 class GCState(ConnectionState):
     gc_parsers: Dict[Language, EventParser] = dict()
 
-    def __init__(self, loop: asyncio.AbstractEventLoop, client: "Client", http: "HTTPClient", **kwargs):
+    def __init__(
+        self, loop: asyncio.AbstractEventLoop, client: "Client", http: "HTTPClient", **kwargs,
+    ):
         super().__init__(loop, client, http, **kwargs)
 
     @register_emsg(EMsg.ClientFromGC)
@@ -59,8 +64,10 @@ class GCState(ConnectionState):
 
     @register(Language.ServerWelcome)
     async def parse_gc_logon(self, msg: MsgProto):
-        self.dispatch('gc_connect')
+        self.dispatch("gc_connect")
 
     @register(Language.ServerGoodbye)
     async def parse_gc_logoff(self, msg: MsgProto):
-        self.dispatch('gc_disconnect')
+        self.dispatch("gc_disconnect")
+
+    # TODO impl https://github.com/DoctorMcKay/node-tf2/blob/master/handlers.js
