@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from typing import Callable, Dict, TYPE_CHECKING
