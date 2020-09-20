@@ -1,0 +1,9 @@
+*.json
+*.py[cod]
+*.log
+*.egg-info
+
+venv
+.idea
+.mypy_cache
+.pytest_cache
