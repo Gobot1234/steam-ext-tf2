@@ -1,10 +1,9 @@
-# -*- coding = utf-8 -*-
+# -*- coding: utf-8 -*-
 
 from steam import IntEnum
 
+
 # fmt: off
-
-
 class GCGoodbyeReason(IntEnum):
     GCGoingDown = 1
     NoSession   = 2

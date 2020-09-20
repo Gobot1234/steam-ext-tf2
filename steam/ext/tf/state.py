@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Callable, Coroutine, Optional, TYPE_CHECKING
+import re
+from typing import TYPE_CHECKING, Callable, Coroutine, Optional
+
+import vdf
 
 import steam
+from steam.protobufs import EMsg, MsgProto
 from steam.state import ConnectionState, register as register_emsg
-from steam.protobufs import MsgProto, EMsg
 
 from .enums import Language
-from .protobufs.base_gcmessages import CMsgClientGoodbye, CMsgClientWelcome, CMsgServerGoodbye, CMsgServerWelcome
+from .protobufs import base_gcmessages as messages
 
 if TYPE_CHECKING:
     from steam import Client
@@ -44,13 +47,19 @@ def register(language: Language) -> Callable[[EventParser], Registerer]:
 class GCState(ConnectionState):
     gc_parsers: dict[Language, EventParser] = dict()
 
-    __slots__ = ('_has_gc_session',)
+    __slots__ = (
+        "schema",
+        "language",
+        "_has_gc_session",
+    )
 
     def __init__(self, loop: asyncio.AbstractEventLoop, client: Client, http: HTTPClient, **kwargs):
         super().__init__(loop, client, http, **kwargs)
+        self.schema: Optional[vdf.VDFDict] = None
+        self.language: Optional[str] = None
 
     @register_emsg(EMsg.ClientFromGC)
-    async def parse_gc_message(self, msg: DefaultMsg):
+    async def parse_gc_message(self, msg: DefaultMsg) -> None:
         if msg.body.appid != steam.TF2:
             return
         try:
@@ -68,25 +77,62 @@ class GCState(ConnectionState):
             await steam.utils.maybe_coroutine(func, self, msg)
 
     @register(Language.ClientWelcome)
-    def parse_gc_connect(self, msg: DefaultMsg):
-        proto = CMsgClientWelcome().parse(msg.body.payload)
+    def parse_gc_connect(self, msg: DefaultMsg) -> None:
+        proto = messages.CMsgClientWelcome().parse(msg.body.payload)
         self._has_gc_session = True
         self.dispatch("gc_connect", proto.version)
 
     @register(Language.ServerWelcome)
-    def parse_gc_connect(self, msg: DefaultMsg):
-        proto = CMsgServerWelcome().parse(msg.body.payload)
+    def parse_gc_connect(self, msg: DefaultMsg) -> None:
+        proto = messages.CMsgServerWelcome().parse(msg.body.payload)
         self._has_gc_session = True
         self.dispatch("gc_connect", proto.active_version)
 
     @register(Language.ServerGoodbye)
-    def parse_goodbye(self, msg: DefaultMsg):
-        proto = CMsgClientGoodbye().parse(msg.body.payload)
+    def parse_goodbye(self, msg: DefaultMsg) -> None:
+        proto = messages.CMsgClientGoodbye().parse(msg.body.payload)
         self.dispatch("gc_disconnect", proto.reason)
 
     @register(Language.ServerGoodbye)
-    def parse_goodbye(self, msg: DefaultMsg):
-        proto = CMsgServerGoodbye().parse(msg.body.payload)
+    def parse_goodbye(self, msg: DefaultMsg) -> None:
+        proto = messages.CMsgServerGoodbye().parse(msg.body.payload)
         self.dispatch("gc_disconnect", proto.reason)
 
-    # TODO impl https://github.com/DoctorMcKay/node-tf2/blob/master/handlers.js
+    @register(Language.UpdateItemSchema)
+    async def parse_schema(self, msg: DefaultMsg) -> None:
+        proto = messages.CMsgUpdateItemSchema().parse(msg.body.payload)
+
+        try:
+            resp = await self.http._session.get(proto.items_game_url)
+        except Exception as exc:
+            log.error("Failed to get item schema")
+            return log.error(exc)
+
+        self.schema = vdf.parse(await resp.text())["items_game"]
+        self.dispatch("gc_ready")
+
+    @register(Language.SystemMessage)
+    def parse_system_message(self, msg: DefaultMsg) -> None:
+        proto = messages.CMsgSystemBroadcast().parse(msg.payload.body)
+        self.dispatch("system_message", proto.message)
+
+    @register(Language.ClientDisplayNotification)
+    def parse_client_notification(self, msg: DefaultMsg) -> None:
+        if self.language is None:
+            return
+
+        proto = messages.CMsgGcClientDisplayNotification().parse(msg.body.payload)
+        title = self.language[proto.notification_title_localization_key[1:]]
+        text = re.sub(r"[\u0001|\u0002]", "", self.language[proto.notification_body_localization_key[1]])
+        for i, replacement in enumerate(proto.body_substring_values):
+            if replacement[0] == "#":
+                replacement = self.language[replacement[1:]]
+            text = text.replace(f"%{proto.body_substring_keys[i]}%", replacement)
+        self.dispatch("display_notification", title, text)
+
+    @register(Language.CraftResponse)
+    def parse_crafting_response(self, msg: DefaultMsg) -> None:
+        proto = messages.BluePrintResponse().parse(msg.body.payload)
+        self.dispatch("crafting_complete", proto)
+
+    # TODO impl https://github.com/DoctorMcKay/node-tf2/blob/master/handlers.js#L129-L269
