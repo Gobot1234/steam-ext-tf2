@@ -1,1 +1,2 @@
 steamio>=0.3.2
+git+git://github.com/Gobot1234/vdf3@master#egg=vdf3
