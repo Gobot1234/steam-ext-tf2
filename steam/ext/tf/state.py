@@ -88,7 +88,7 @@ class GCState(ConnectionState):
         self._has_gc_session = True
         self.dispatch("gc_connect", proto.active_version)
 
-    @register(Language.ServerGoodbye)
+    @register(Language.ClientGoodbye)
     def parse_goodbye(self, msg: DefaultMsg) -> None:
         proto = messages.CMsgClientGoodbye().parse(msg.body.payload)
         self.dispatch("gc_disconnect", proto.reason)
@@ -134,5 +134,10 @@ class GCState(ConnectionState):
     def parse_crafting_response(self, msg: DefaultMsg) -> None:
         proto = messages.BluePrintResponse().parse(msg.body.payload)
         self.dispatch("crafting_complete", proto)
+
+    @register_emsg(EMsg.ServiceMethodResponse)
+    async def parse_service_method_response(self, msg: MsgProto) -> None:
+        await self.ws.send
+        super().parse_service_method_response(msg)
 
     # TODO impl https://github.com/DoctorMcKay/node-tf2/blob/master/handlers.js#L129-L269
