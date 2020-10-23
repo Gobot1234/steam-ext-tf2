@@ -71,6 +71,16 @@ class ItemSlot(IntEnum):
     Taunt8    = 18
 
 
+class BackpackSortType(IntEnum):  # N.B only in game ones will actually work
+    Name     = 1
+    Defindex = 2
+    Rarity   = 3
+    Type     = 4
+    Date     = 5
+    Class    = 101
+    Slot     = 102
+
+
 class ItemFlags(IntEnum):
     CannotTrade = 1 << 0
     CannotCraft = 1 << 1
