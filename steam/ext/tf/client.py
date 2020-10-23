@@ -20,17 +20,6 @@ __all__ = (
 )
 
 
-# monkey patch in send_gc_message
-async def send_gc_message(self: SteamWebSocket, msg: GCMsgBase):
-    message: MsgProto[CMsgGcClient] = MsgProto(EMsg.ClientToGC)
-    message.body.appid = message.header.body.routing_appid = TF2.id
-    message.body.msgtype = set_proto_bit(msg.header.msg) if isinstance(msg, GCMsgProto) else msg.header.msg
-    message.body.payload = bytes(msg)
-    await self.send_as_proto(message)
-
-SteamWebSocket.send_gc_message = send_gc_message
-
-
 class Client(Client):
     def __init__(self, loop: Optional[asyncio.AbstractEventLoop] = None, **options):
         game = options.pop("game", None)
