@@ -4,20 +4,12 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING, Callable, Coroutine, Optional
+from typing import Any, TYPE_CHECKING, Callable, Coroutine, Optional
 
-from ... import ClientUser, Game
-
-try:
-    import orvdf as vdf
-except ImportError:
-    import vdf
-else:
-    import multidict
-
-
+from multidict import MultiDict
 
 import steam
+from steam import ClientUser, Game
 from steam.protobufs import EMsg, MsgProto
 from steam.state import ConnectionState, register as register_emsg
 
@@ -58,6 +50,7 @@ def register(language: Language) -> Callable[[EventParser], Registerer]:
 
 
 class GCState(ConnectionState):
+    client: Client
     gc_parsers: dict[Language, EventParser] = {}
 
     __slots__ = (
@@ -71,11 +64,10 @@ class GCState(ConnectionState):
 
     def __init__(self, client: Client, http: HTTPClient, **kwargs):
         super().__init__(client, http, **kwargs)
-        self.schema: Optional[vdf.VDFDict] = None
-        language = kwargs.get("language")
-        if language is not None:
-            client.set_language(language)
-        self.language: Optional[str] = language
+        self.schema: Optional[MultiDict] = None
+        self.language: Optional[dict[str, Any]] = kwargs.get("language")
+        if self.language is not None:
+            client.set_language(self.language)
 
     @register_emsg(EMsg.ClientFromGC)
     async def parse_gc_message(self, msg: MsgProto[CMsgGcClient]) -> None:
@@ -98,6 +90,9 @@ class GCState(ConnectionState):
                 else GCMsg(language, msg.body.payload)
             )
         except Exception as exc:
+            if language == Language.SOCacheSubscriptionCheck:
+                # I'm pretty confident the message is broken but we don't need its contents so this is fine
+                return await self.parse_cache_check.func(self, None)
             return log.error(f"Failed to deserialize message: {language!r}, {msg.body.payload!r}", exc_info=exc)
         else:
             try:
@@ -140,7 +135,7 @@ class GCState(ConnectionState):
         except Exception as exc:
             return log.error("Failed to get item schema", exc_info=exc)
 
-        self.schema = vdf.loads(await resp.text())["items_game"]
+        self.schema = self.client.VDF_DECODER(await resp.text())["items_game"]
         log.info("Loaded schema")
         self.dispatch("gc_ready")
 
@@ -168,7 +163,7 @@ class GCState(ConnectionState):
     @register(Language.SOCacheSubscriptionCheck)
     async def parse_cache_check(self, _) -> None:
         log.debug("Requesting SO cache subscription refresh")
-        msg = GCMsg(Language.SOCacheSubscriptionRefresh, owner=self.client.user.id64)
+        msg = GCMsgProto(Language.SOCacheSubscriptionRefresh, owner=self.client.user.id64)
         await self.ws.send_gc_message(msg)
 
     @register(Language.SOCacheSubscribed)

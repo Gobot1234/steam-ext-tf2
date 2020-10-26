@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
+import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union
+from typing import Callable, TYPE_CHECKING, Optional, Union
 
-from ...client import Client
-from ...ext import commands
-from ...game import TF2
+import vdf
+from multidict import MultiDict
+from typing_extensions import Final
+
+from steam import Client, Game, TF2
+from steam.ext import commands
 from .enums import Language
 from .protobufs import GCMsgProto
 from .state import GCState
@@ -22,6 +26,9 @@ __all__ = (
 
 
 class Client(Client):
+    VDF_DECODER: Callable[[str], MultiDict] = vdf.loads  #: The default VDF decoder to use
+    VDF_ENCODER: Callable[[str], MultiDict] = vdf.dumps  #: The default VDF encoder to use
+    GAME: Final[Game] = TF2
 
     def __init__(self, loop: Optional[asyncio.AbstractEventLoop] = None, **options):
         game = options.pop("game", None)
@@ -39,16 +46,16 @@ class Client(Client):
         await super().close()
 
     @property
-    def schema(self):
+    def schema(self) -> MultiDict:
         return self._connection.schema
 
     def is_premium(self) -> bool:
         return self._connection._is_premium
 
-    def set_language(self, file: Union[Path, str]):
+    def set_language(self, file: Union[Path, str]) -> None:
         """Set the localization files for your bot."""
         file = Path(file).resolve()
-        self._connection.language = file.read_text()
+        self._connection.language = json.loads(file.read_text())
 
     if TYPE_CHECKING:
 
