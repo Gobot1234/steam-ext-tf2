@@ -19,12 +19,11 @@ bot = tf.Bot(command_prefix="!")
 @bot.event
 async def on_gc_ready():
     print("GC is ready")
-    while True:
-        print("How much metal do you want to craft?")
-        amount = await steam.utils.ainput(">>> ")
-        if not amount.isdigit():
-            continue
-        await bot.craft(tf.RefinedMetal(int(amount))
+
+@bot.event
+async def on_trade_accept(trade):
+    if [item.name for item in trade.items_to_receive].count("Scrap Metal") > 3:
+        await bot.craft(trade.)
         await bot.wait_for("crafting_complete")
         print(f"Crafted {amount} Refined Metal")
 ```

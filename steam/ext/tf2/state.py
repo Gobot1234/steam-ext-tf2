@@ -6,6 +6,8 @@ import logging
 import re
 from typing import TYPE_CHECKING, Callable, Coroutine, Optional
 
+from ... import ClientUser, Game
+
 try:
     import orvdf as vdf
 except ImportError:
@@ -13,7 +15,7 @@ except ImportError:
 else:
     import multidict
 
-    vdf.VDFDict = multidict.MultiDict
+
 
 import steam
 from steam.protobufs import EMsg, MsgProto
@@ -29,7 +31,7 @@ from .protobufs import (
 )
 
 if TYPE_CHECKING:
-    from steam import Client
+    from .client import Client
     from steam.http import HTTPClient
     from steam.protobufs.steammessages_clientserver_2 import CMsgGcClient
 
@@ -70,7 +72,10 @@ class GCState(ConnectionState):
     def __init__(self, client: Client, http: HTTPClient, **kwargs):
         super().__init__(client, http, **kwargs)
         self.schema: Optional[vdf.VDFDict] = None
-        self.language: Optional[str] = None
+        language = kwargs.get("language")
+        if language is not None:
+            client.set_language(language)
+        self.language: Optional[str] = language
 
     @register_emsg(EMsg.ClientFromGC)
     async def parse_gc_message(self, msg: MsgProto[CMsgGcClient]) -> None:
@@ -89,7 +94,7 @@ class GCState(ConnectionState):
         try:
             msg = (
                 GCMsgProto(language, msg.body.payload)
-                if steam.utils.is_proto(language)
+                if steam.utils.is_proto(msg.body.msgtype)
                 else GCMsg(language, msg.body.payload)
             )
         except Exception as exc:
@@ -129,7 +134,7 @@ class GCState(ConnectionState):
 
     @register(Language.UpdateItemSchema)
     async def parse_schema(self, msg: GCMsgProto[messages.CMsgUpdateItemSchema]) -> None:
-        log.info("Getting TF2 item schema at", msg.body.items_game_url)
+        log.info(f"Getting TF2 item schema at {msg.body.items_game_url}")
         try:
             resp = await self.http._session.get(msg.body.items_game_url)
         except Exception as exc:
@@ -176,13 +181,26 @@ class GCState(ConnectionState):
                     is_new = (item.inventory >> 30) & 1
                     item.position = 0 if is_new else item.inventory & 0xFFFF
                     items.append(item)
-                self.items = items
-                # TODO patch client.user.inventory (a) to return this but (b) also to merge the items together
-                self.dispatch("backpack_load", items)
+
+                inventory = await self.client.user.inventory(steam.TF2)
+                for item in inventory:
+                    for item_ in items:
+                        for attribute_name in item_.__dataclass_fields__:
+                            setattr(item, attribute_name, getattr(item_, attribute_name))
+
+                async def inventory(self: ClientUser, game: Game) -> steam.Inventory:
+                    if game != steam.TF2:
+                        return await OLD_INVENTORY(self, game)
+
+                    return inventory
+
+                OLD_INVENTORY = self.client.user.inventory
+                self.client.user.inventory = inventory
+                self.dispatch("backpack_load", inventory)
             elif cache.type_id == 7:  # account metadata
                 proto = cso_messages.CsoEconGameAccountClient().parse(cache.object_data[0])
                 self._is_premium = not proto.trial_account
                 self.backpack_slots = (50 if proto.trial_account else 300) + proto.additional_backpack_slots
-                self.dispatch("account_load")  # TODO name doesnt sound too great
+                self.dispatch("account_load")  # TODO name doesnt sound too great also check dispatch order
 
     # TODO impl https://github.com/DoctorMcKay/node-tf2/blob/master/handlers.js#L166-L269

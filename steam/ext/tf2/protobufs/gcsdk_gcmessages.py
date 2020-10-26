@@ -122,7 +122,7 @@ class CGCToGCMsgMasterAck(betterproto.Message):
 
 
 @dataclass
-class CGCToGCMsgMasterAck_Response(betterproto.Message):
+class CGCToGCMsgMasterAckResponse(betterproto.Message):
     eresult: int = betterproto.int32_field(1)
 
 

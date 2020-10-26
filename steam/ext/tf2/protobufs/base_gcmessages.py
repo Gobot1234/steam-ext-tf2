@@ -639,8 +639,6 @@ class CWorkshopSetItemPaymentRulesResponse(betterproto.Message):
 
 # This class does not strictly exist
 # TODO test this
-
-
 @dataclass
 class BluePrintResponse(betterproto.Message):
     recipe_id: int = betterproto.int32_field(1)

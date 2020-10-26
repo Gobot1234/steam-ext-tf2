@@ -65,4 +65,5 @@ class GCMsgProto(GCMsgBase[T]):
     ):
         self.header = GCMsgHdrProto(data)
         self.skip = self.header.SIZE + self.header.header_length
+        print(data[self.skip:])
         super().__init__(msg, data, **kwargs)
