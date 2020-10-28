@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 from __future__ import annotations
 
 import asyncio
@@ -11,7 +12,7 @@ from typing_extensions import Final
 
 from steam import TF2, Client, Game
 from steam.ext import commands
-from steam.protobufs import GCMsgProto
+from steam.protobufs import GCMsg
 
 from .enums import Language
 from .state import GCState
@@ -43,7 +44,6 @@ class Client(Client):
         options["game"] = TF2
         super().__init__(loop, **options)
         self._connection = GCState(client=self, http=self.http, **options)
-        self._connect_event = asyncio.Event()
         self._gc_connect_task: Optional[asyncio.Task] = None
 
     @property
@@ -74,22 +74,16 @@ class Client(Client):
         self._gc_connect_task = self.loop.create_task(self._on_gc_connect())
         await super().start(*args, **kwargs)
 
-    def clear(self):
-        self._gc_connect_task.cancel()
-        self._connect_event.clear()
-        super().clear()
-
     async def _on_gc_connect(self) -> None:
         await self.wait_until_ready()
         self._connection._unpatched_inventory = self.user.inventory
-        await self._connect_event.wait()
+        await self.wait_for("gc_connect")
         while True:  # this is ok-ish as gateway.KeepAliveHandler should catch any blocking and disconnects
-            print("SEnding")
-            await self.ws.send_gc_message(GCMsgProto(Language.ClientHello))
+            await self.ws.send_gc_message(GCMsg(Language.ClientHello))
             await asyncio.sleep(5)
 
     async def close(self) -> None:
-        await self.ws.send_gc_message(GCMsgProto(Language.ClientGoodbye))
+        await self.ws.send_gc_message(GCMsg(Language.ClientGoodbye))
         self._gc_connect_task.cancel()
         await super().close()
 
@@ -117,7 +111,8 @@ class Client(Client):
 
         async def on_gc_ready(self) -> None:
             """|coro|
-            Called after the client connects to the GC and has the :attr:`schema`.
+            Called after the client connects to the GC and has the :attr:`schema`, :meth:`Client.user.inventory` and set
+            up and account info (:meth:`is_premium` and :attr:`backpack_slots`).
             """
 
         async def on_account_update(self) -> None:
@@ -130,9 +125,7 @@ class Client(Client):
 
         # NOTE!!!!!!
         # above should be safe from changes
-        # below are subject to changes
-
-        # async def on_account_load(self) -> None: ... # might be removed depending on how long this takes to dispatch
+        # below are subject to changes and or may be broken
 
         async def on_crafting_complete(self, craft: tf2.BluePrintResponse) -> None:
             """|coro|

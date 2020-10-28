@@ -24,7 +24,7 @@ class BackPackItem(steam.Item):
         "id",
         "position",
         "account_id",
-        "backpack",
+        "inventory",
         "def_index",
         "quantity",
         "level",
@@ -45,7 +45,10 @@ class BackPackItem(steam.Item):
 
     def __init__(self, item: steam.Item):
         for name, attr in inspect.getmembers(item):
-            setattr(self, name, attr)
+            try:
+                setattr(self, name, attr)
+            except (AttributeError, TypeError):
+                pass
         id: int
         position: int
         account_id: int
@@ -67,6 +70,13 @@ class BackPackItem(steam.Item):
         equipped_state: list["CsoEconItemEquipped"]
         contains_equipped_state_v2: bool
 
+    def __repr__(self) -> str:
+        item_repr = super().__repr__()[6:-1]
+        resolved = [item_repr]
+        attrs = ("position",)
+        resolved.extend(f"{attr}={getattr(self, attr)!r}" for attr in attrs)
+        return f"<BackPackItem {' '.join(resolved)}>"
+
     async def delete(self) -> None:
         pass
 
@@ -82,7 +92,10 @@ class BackPack(steam.Inventory):
 
     def __init__(self, inventory: steam.Inventory):
         for name, attr in inspect.getmembers(inventory):
-            setattr(self, name, attr)
+            try:
+                setattr(self, name, attr)
+            except (AttributeError, TypeError):
+                pass
         self.items: list[BackPackItem] = [BackPackItem(item) for item in inventory.items]
 
     def __iter__(self) -> Iterator[BackPackItem]:

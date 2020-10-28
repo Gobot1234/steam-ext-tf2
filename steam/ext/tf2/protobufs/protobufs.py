@@ -9,6 +9,7 @@ PROTOBUFS.update(
     {
         Language.ClientWelcome: messages.CMsgClientWelcome,
         Language.ServerWelcome: messages.CMsgServerWelcome,
+        Language.ClientHello: messages.CMsgClientHello,
         Language.ClientGoodbye: messages.CMsgClientGoodbye,
         Language.ServerGoodbye: messages.CMsgServerGoodbye,
         Language.SystemMessage: messages.CMsgSystemBroadcast,
@@ -22,7 +23,7 @@ PROTOBUFS.update(
         Language.SODestroy: so_messages.CMsgSOSingleObject,
         Language.CraftResponse: so_messages.CMsgSOMultipleObjects,
         Language.SOCacheSubscriptionRefresh: so_messages.CMsgSOCacheSubscriptionRefresh,
-        Language.SOCacheSubscribed: cso_messages.CsoEconItem,
+        Language.SOCacheSubscribed: so_messages.CMsgSOCacheSubscribed,
         Language.GameServerCreateIdentityResponse: cso_messages.CsoEconItem,
         Language.GameServerListResponse: cso_messages.CsoEconGameAccountClient,
         Language.WarGlobalStatsResponse: cso_messages.CsoEconItem,
