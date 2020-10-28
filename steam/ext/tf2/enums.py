@@ -360,4 +360,5 @@ class Language(IntEnum):
     WarJoinWar                                  = 6506
     WarRequestGlobalStats                       = 6507
     WarGlobalStatsResponse                      = 6508
+    WorldStatusBroadcast                        = 6518
     DevGrantWarKill                             = 10001

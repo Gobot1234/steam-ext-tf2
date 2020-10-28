@@ -5,6 +5,6 @@ __author__ = "Gobot1234"
 __license__ = "MIT"
 __version__ = "1.0.0a"
 
+from .backpack import *
 from .client import *
 from .protobufs.base_gcmessages import BluePrintResponse
-from .backpack import *

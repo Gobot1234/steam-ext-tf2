@@ -1,23 +1,26 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
 
 import asyncio
-import json
 from pathlib import Path
-from typing import Callable, TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Callable, Optional, Union
 
 import vdf
 from multidict import MultiDict
 from typing_extensions import Final
 
-from steam import Client, Game, TF2
+from steam import TF2, Client, Game
 from steam.ext import commands
+from steam.protobufs import GCMsgProto
+
 from .enums import Language
-from .protobufs import GCMsgProto
 from .state import GCState
 
 if TYPE_CHECKING:
-    from .protobufs.base_gcmessages import BluePrintResponse
     from steam.ext import tf2
+
+    from .backpack import BackPackItem
+    from .protobufs.base_gcmessages import BluePrintResponse
 
 __all__ = (
     "Client",
@@ -40,22 +43,55 @@ class Client(Client):
         options["game"] = TF2
         super().__init__(loop, **options)
         self._connection = GCState(client=self, http=self.http, **options)
-
-    async def close(self) -> None:
-        await self.ws.send_gc_message(GCMsgProto(Language.ClientGoodbye))
-        await super().close()
+        self._connect_event = asyncio.Event()
+        self._gc_connect_task: Optional[asyncio.Task] = None
 
     @property
-    def schema(self) -> MultiDict:
+    def schema(self) -> Optional[MultiDict]:
+        """:class:`multidict.MultiDict`: TF2's item schema."""
         return self._connection.schema
 
+    @property
+    def backpack_slots(self) -> int:
+        """:class:`int`: The client's number of backpack slots"""
+        return self._connection.backpack_slots
+
     def is_premium(self) -> bool:
+        """:class:`bool`: Whether or not the client's account has TF2 premium"""
         return self._connection._is_premium
 
     def set_language(self, file: Union[Path, str]) -> None:
         """Set the localization files for your bot."""
         file = Path(file).resolve()
-        self._connection.language = json.loads(file.read_text())
+        self._connection.language = self.VDF_DECODER(file.read_text())
+
+    async def craft(self, items: list[BackPackItem], recipe: Optional[int] = None):
+        pass
+
+    # boring subclass stuff
+
+    async def start(self, *args, **kwargs) -> None:
+        self._gc_connect_task = self.loop.create_task(self._on_gc_connect())
+        await super().start(*args, **kwargs)
+
+    def clear(self):
+        self._gc_connect_task.cancel()
+        self._connect_event.clear()
+        super().clear()
+
+    async def _on_gc_connect(self) -> None:
+        await self.wait_until_ready()
+        self._connection._unpatched_inventory = self.user.inventory
+        await self._connect_event.wait()
+        while True:  # this is ok-ish as gateway.KeepAliveHandler should catch any blocking and disconnects
+            print("SEnding")
+            await self.ws.send_gc_message(GCMsgProto(Language.ClientHello))
+            await asyncio.sleep(5)
+
+    async def close(self) -> None:
+        await self.ws.send_gc_message(GCMsgProto(Language.ClientGoodbye))
+        self._gc_connect_task.cancel()
+        await super().close()
 
     if TYPE_CHECKING:
 
@@ -81,8 +117,22 @@ class Client(Client):
 
         async def on_gc_ready(self) -> None:
             """|coro|
-            Called after the Client connects to the GC and has the :attr:`schema`.
+            Called after the client connects to the GC and has the :attr:`schema`.
             """
+
+        async def on_account_update(self) -> None:
+            """|coro|
+            Called when the client user's account is updated. This can happen from any one of the below changing:
+
+                - :meth:`is_premium`
+                - :attr:`backpack_slots`
+            """
+
+        # NOTE!!!!!!
+        # above should be safe from changes
+        # below are subject to changes
+
+        # async def on_account_load(self) -> None: ... # might be removed depending on how long this takes to dispatch
 
         async def on_crafting_complete(self, craft: tf2.BluePrintResponse) -> None:
             """|coro|
@@ -94,26 +144,54 @@ class Client(Client):
                 The completed crafting recipe.
             """
 
-        # above should be safe from changes
-
-        # async def on_account_load(self) -> None: ... # might be removed depending on how long this takes to dispatch
-
-        '''
         async def on_backpack_update(self, backpack: tf2.BackPack):
             """|coro|
-            Called when the bot's backpack is updated. 
-            
+            Called when the client's backpack is updated.
+
             Note
             ----
-            This can be accessed at any time by calling :meth:`steam.ClientUser.inventory` with :attr:`steam.TF2` as 
+            This can be accessed at any time by calling :meth:`steam.ClientUser.backpack` with :attr:`steam.TF2` as
             the game.
 
             Parameters
             ----------
             backpack: :class:`tf2.BackPack`
-                The bot's backpack.
+                The client's backpack.
             """
-        '''
+
+        async def on_item_receive(self, item: tf2.BackPackItem):
+            """|coro|
+            Called when the client receives an item.
+
+            Parameters
+            ----------
+            item: :class:`tf2.BackPackItem`
+                The received item.
+            """
+
+        async def on_item_remove(self, item: tf2.BackPackItem):
+            """|coro|
+            Called when the client has an item removed from its inventory.
+
+            Parameters
+            ----------
+            item: :class:`tf2.BackPackItem`
+                The removed item.
+            """
+
+        async def on_item_update(self, before: tf2.BackPackItem, after: tf2.BackPackItem):
+            """|coro|
+            Called when the client has an item in its inventory updated.
+
+            Parameters
+            ----------
+            before: :class:`tf2.BackPackItem`
+                The item before being updated.
+            after: :class:`tf2.BackPackItem`
+                The item now.
+            """
+
+    # TODO wait_fors
 
 
 class Bot(commands.Bot, Client):
