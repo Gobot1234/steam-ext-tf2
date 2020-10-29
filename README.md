@@ -1,13 +1,13 @@
 steam-ext-tf2
 ==============
 
-An extension to interact with the Team Fortress 2 Game Coordinator for [steam.py](https://github.com/Gobot1234/steam.py).
-`tf.Client` and `tf.Bot` are `steam.Client` and `commands.Bot` subclasses respectively, so whatever you did with
-`steam.-` you can do with `tf.-`
+An extension to interact with the Team Fortress 2 Game Coordinator for 
+[steam.py](https://github.com/Gobot1234/steam.py). `tf.Client` and `tf.Bot` are `steam.Client` and `commands.Bot` 
+subclasses respectively, so whatever you did with `steam.-` you can do with `tf.-`
 
 
-Example Autocrafting metal
-==========================
+Example Auto-crafting metal
+===========================
 
 ```py
 import steam
@@ -40,4 +40,6 @@ async def on_trade_accept(trade: steam.TradeOffer):
         refined_crafted += 1
 
     print(f"Crafted {refined_crafted} Refined Metal")
+
+bot.run("username", "password")
 ```

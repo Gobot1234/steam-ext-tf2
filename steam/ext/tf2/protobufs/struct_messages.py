@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from ..utils import BytesBuffer
 
 # some custom messages to make things a lot easier decoding/encoding wise
@@ -17,13 +19,16 @@ class MessageBase:
                 raise TypeError(f"__init__ got an unexpected key word argument {key}")
             setattr(self, key, value)
 
-    def from_dict(self, **kwargs) -> MessageBase:
-        for key, value in kwargs.items():
+    def from_dict(self, dict) -> MessageBase:
+        for key, value in dict.items():
             if key not in self.__annotations__:
                 raise TypeError(f"{self.__class__.__name__} got an unexpected key word argument {key}")
             setattr(self, key, value)
 
         return self
+
+    def to_dict(self) -> dict[str, Any]:
+        return {key: getattr(self, key) for key in self.__annotations__}
 
     def __bytes__(self) -> bytes:
         buffer = BytesBuffer()
