@@ -88,6 +88,24 @@ class ItemFlags(IntEnum):
     Preview     = 1 << 7
 
 
+class ItemQuality(IntEnum):
+    Normal = 0
+    Genuine = 1
+    Vintage = 3
+    Rarity3 = 4
+    Unusual = 5
+    Unique = 6
+    Community = 7
+    Valve = 8
+    SelfMade = 9
+    Customized = 10
+    Strange = 11
+    Completed = 12
+    Haunted = 13
+    Collectors = 14
+    DecoratedWeapon = 15
+
+
 class Language(IntEnum):
     SOCreate                                    = 21
     SOUpdate                                    = 22

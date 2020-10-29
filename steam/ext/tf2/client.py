@@ -10,8 +10,9 @@ import vdf
 from multidict import MultiDict
 from typing_extensions import Final
 
-from steam import TF2, Client, Game
+from steam import TF2, Client, ClientUser, Game
 from steam.ext import commands
+from steam.models import FunctionType
 from steam.protobufs import GCMsg
 
 from .enums import Language
@@ -20,13 +21,21 @@ from .state import GCState
 if TYPE_CHECKING:
     from steam.ext import tf2
 
-    from .backpack import BackPackItem
-    from .protobufs.base_gcmessages import BluePrintResponse
+    from .backpack import BackPack, BackPackItem
 
 __all__ = (
     "Client",
     "Bot",
 )
+
+
+class TF2ClientUser(ClientUser):
+    inventory: FetchBackPack
+
+
+class FetchBackPack(FunctionType):
+    async def __call__(self, game: Game) -> BackPack:
+        ...  # is there a better way to do this using literals?
 
 
 class Client(Client):
@@ -47,6 +56,10 @@ class Client(Client):
         self._gc_connect_task: Optional[asyncio.Task] = None
 
     @property
+    def user(self) -> Optional[TF2ClientUser]:
+        return super().user
+
+    @property
     def schema(self) -> Optional[MultiDict]:
         """:class:`multidict.MultiDict`: TF2's item schema."""
         return self._connection.schema
@@ -65,8 +78,19 @@ class Client(Client):
         file = Path(file).resolve()
         self._connection.language = self.VDF_DECODER(file.read_text())
 
-    async def craft(self, items: list[BackPackItem], recipe: Optional[int] = None):
-        pass
+    async def craft(self, items: list[BackPackItem], recipe: int = -2):
+        """|coro|
+        Craft a set of items together with an optional recipe
+
+        Parameters
+        ----------
+        items: list[:class:`BackPackItem`]
+            The items to craft.
+        recipe: :class:`int`
+            The recipe to craft them with default is -2 (wildcard).
+        """
+        msg = GCMsg(Language.Craft, recipe=recipe, items=[item.id for item in items])
+        await self.ws.send_gc_message(msg)
 
     # boring subclass stuff
 
@@ -127,7 +151,7 @@ class Client(Client):
         # above should be safe from changes
         # below are subject to changes and or may be broken
 
-        async def on_crafting_complete(self, craft: tf2.BluePrintResponse) -> None:
+        async def on_crafting_complete(self, craft: tf2.CraftResponse) -> None:
             """|coro|
             Called after a crafting recipe is completed.
 

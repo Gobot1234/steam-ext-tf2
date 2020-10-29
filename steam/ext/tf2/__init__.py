@@ -7,4 +7,4 @@ __version__ = "1.0.0a"
 
 from .backpack import *
 from .client import *
-from .protobufs.base_gcmessages import BluePrintResponse
+from .protobufs.struct_messages import CraftResponse

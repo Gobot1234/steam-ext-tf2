@@ -635,13 +635,3 @@ class CWorkshopSetItemPaymentRulesRequestPartnerItemPaymentRule(betterproto.Mess
 @dataclass
 class CWorkshopSetItemPaymentRulesResponse(betterproto.Message):
     pass
-
-
-# This class does not strictly exist
-# TODO test this
-@dataclass
-class BluePrintResponse(betterproto.Message):
-    recipe_id: int = betterproto.int32_field(1)
-    unknown: int = betterproto.uint32_field(2)
-    id_count: int = betterproto.uint32_field(3)
-    id_list: List[int] = betterproto.int32_field(4)

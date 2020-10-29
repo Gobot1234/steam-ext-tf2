@@ -15,7 +15,8 @@ from steam.state import ConnectionState, register as register_emsg
 
 from .backpack import BackPack
 from .enums import Language
-from .protobufs import base_gcmessages as cso_messages, base_gcmessages as messages, gcsdk_gcmessages as so_messages
+from .protobufs import base_gcmessages as cso_messages, gcsdk_gcmessages as so_messages, struct_messages
+from .protobufs.protobufs import GCMsgProtos
 
 if TYPE_CHECKING:
     from steam.http import HTTPClient
@@ -84,7 +85,9 @@ class GCState(ConnectionState):
             )
 
         try:
-            msg = GCMsgProto(language, msg.body.payload) if language > 1000 else GCMsg(language, msg.body.payload)
+            msg = (
+                GCMsgProto(language, msg.body.payload) if language in GCMsgProtos else GCMsg(language, msg.body.payload)
+            )
         except Exception as exc:
             return log.error(f"Failed to deserialize message: {language!r}, {msg.body.payload!r}", exc_info=exc)
         else:
@@ -103,23 +106,23 @@ class GCState(ConnectionState):
             await steam.utils.maybe_coroutine(func, self, msg)
 
     @register(Language.ClientWelcome)
-    def parse_gc_client_connect(self, msg: GCMsgProto[messages.CMsgClientWelcome]) -> None:
+    def parse_gc_client_connect(self, msg: GCMsgProto[cso_messages.CMsgClientWelcome]) -> None:
         self.dispatch("gc_connect", msg.body.version)
 
     @register(Language.ServerWelcome)
-    def parse_gc_server_connect(self, msg: GCMsgProto[messages.CMsgServerWelcome]) -> None:
+    def parse_gc_server_connect(self, msg: GCMsgProto[cso_messages.CMsgServerWelcome]) -> None:
         self.dispatch("gc_connect", msg.body.active_version)
 
     @register(Language.ClientGoodbye)
-    def parse_client_goodbye(self, msg: GCMsgProto[messages.CMsgClientGoodbye]) -> None:
+    def parse_client_goodbye(self, msg: GCMsgProto[cso_messages.CMsgClientGoodbye]) -> None:
         self.dispatch("gc_disconnect", msg.body.reason)
 
     @register(Language.ServerGoodbye)
-    def parse_server_goodbye(self, msg: GCMsgProto[messages.CMsgServerGoodbye]) -> None:
+    def parse_server_goodbye(self, msg: GCMsgProto[cso_messages.CMsgServerGoodbye]) -> None:
         self.dispatch("gc_disconnect", msg.body.reason)
 
     @register(Language.UpdateItemSchema)
-    async def parse_schema(self, msg: GCMsgProto[messages.CMsgUpdateItemSchema]) -> None:
+    async def parse_schema(self, msg: GCMsgProto[cso_messages.CMsgUpdateItemSchema]) -> None:
         log.info(f"Getting TF2 item schema at {msg.body.items_game_url}")
         try:
             resp = await self.http._session.get(msg.body.items_game_url)
@@ -130,11 +133,11 @@ class GCState(ConnectionState):
         log.info("Loaded schema")
 
     @register(Language.SystemMessage)
-    def parse_system_message(self, msg: GCMsgProto[messages.CMsgSystemBroadcast]) -> None:
+    def parse_system_message(self, msg: GCMsgProto[cso_messages.CMsgSystemBroadcast]) -> None:
         self.dispatch("system_message", msg.body.message)
 
     @register(Language.ClientDisplayNotification)
-    def parse_client_notification(self, msg: GCMsgProto[messages.CMsgGcClientDisplayNotification]) -> None:
+    def parse_client_notification(self, msg: GCMsgProto[cso_messages.CMsgGcClientDisplayNotification]) -> None:
         if self.language is None:
             return
 
@@ -147,8 +150,13 @@ class GCState(ConnectionState):
         self.dispatch("display_notification", title, text)
 
     @register(Language.CraftResponse)
-    def parse_crafting_response(self, msg: GCMsg[so_messages.CMsgSOMultipleObjects]) -> None:
-        self.dispatch("crafting_complete", msg.body)  # TODO parse into item
+    def parse_crafting_response(self, msg: GCMsg[struct_messages.CraftResponse]) -> None:
+        for idx, item_id in enumerate(msg.body.id_list):
+            item = steam.utils.find(lambda i: i.id == item_id, self.backpack)
+            if item is not None:  # TODO is this useful?
+                msg.body.id_list[idx] = item
+
+        self.dispatch("crafting_complete", msg.body)
 
     @register(Language.SOCacheSubscriptionCheck)
     async def parse_cache_check(self, _) -> None:
