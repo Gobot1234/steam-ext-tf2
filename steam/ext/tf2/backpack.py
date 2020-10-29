@@ -86,7 +86,10 @@ class BackPackItem(steam.Item):
                 setattr(self, name, attr)
             except (AttributeError, TypeError):
                 pass
-        self.quality = ItemQuality.try_value(self.quality)
+        try:
+            self.quality = ItemQuality.try_value(self.quality)
+        except AttributeError:
+            pass
         self._state = state
 
     def __repr__(self) -> str:
