@@ -19,7 +19,7 @@ class MessageBase:
                 raise TypeError(f"__init__ got an unexpected key word argument {key}")
             setattr(self, key, value)
 
-    def from_dict(self, dict) -> MessageBase:
+    def from_dict(self, dict: dict[str, Any]) -> MessageBase:
         for key, value in dict.items():
             if key not in self.__annotations__:
                 raise TypeError(f"{self.__class__.__name__} got an unexpected key word argument {key}")
