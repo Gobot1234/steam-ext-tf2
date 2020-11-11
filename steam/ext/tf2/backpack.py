@@ -150,7 +150,7 @@ class BackPackItem(steam.Item):
 
         Parameters
         ----------
-        mercenary : :class:`Class`
+        mercenary: :class:`Class`
             The mercenary to equip the item to.
         slot: :class:`ItemSlot`
             The item slot to equip the item to.

@@ -11,7 +11,7 @@ import vdf
 from multidict import MultiDict
 from typing_extensions import Final, Literal
 
-from steam import TF2, ClanInvite, Client, ClientUser, Comment, Game, Message, TradeOffer, User, UserInvite
+from steam import TF2, ClanInvite, Client, ClientUser, Comment, Game, Message, TradeOffer, User, UserInvite, Inventory
 from steam.ext import commands
 from steam.models import FunctionType
 from steam.protobufs import GCMsg
@@ -47,6 +47,8 @@ class Client(Client):
     VDF_ENCODER: Callable[[str], MultiDict] = vdf.dumps  #: The default VDF encoder to use
     GAME: Final[Game] = TF2
 
+    user: Optional[TF2ClientUser]
+
     def __init__(self, loop: Optional[asyncio.AbstractEventLoop] = None, **options):
         game = options.pop("game", None)
         if game is not None:  # don't let them overwrite the main game
@@ -58,10 +60,6 @@ class Client(Client):
         super().__init__(loop, **options)
         self._connection = GCState(client=self, http=self.http, **options)
         self._gc_connect_task: Optional[asyncio.Task] = None
-
-    @property
-    def user(self) -> Optional[TF2ClientUser]:
-        return super().user
 
     @property
     def schema(self) -> Optional[MultiDict]:

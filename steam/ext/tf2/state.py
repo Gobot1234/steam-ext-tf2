@@ -11,7 +11,8 @@ from multidict import MultiDict
 import steam
 from steam import Game, Inventory
 from steam.protobufs import EMsg, GCMsg, GCMsgProto, MsgProto
-from steam.state import ConnectionState, register as register_emsg
+from steam.models import register
+from steam.state import ConnectionState
 
 from .backpack import BackPack
 from .enums import Language
@@ -28,27 +29,9 @@ log = logging.getLogger(__name__)
 EventParser = Callable[["GCState", GCMsgProto], Optional[Coroutine[None, None, None]]]
 
 
-class Registerer:
-    __slots__ = ("func", "language")
-
-    def __init__(self, func: EventParser, language: Language):
-        self.func = func
-        self.language = language
-
-    def __set_name__(self, state: "GCState", _) -> None:
-        state.gc_parsers[self.language] = self.func
-
-
-def register(language: Language) -> Callable[[EventParser], Registerer]:
-    def decorator(func: EventParser) -> Registerer:
-        return Registerer(func, language)
-
-    return decorator
-
-
 class GCState(ConnectionState):
-    client: Client
     gc_parsers: dict[Language, EventParser] = {}
+    client: Client
 
     __slots__ = (
         "schema",
@@ -72,9 +55,9 @@ class GCState(ConnectionState):
         if language is not None:
             client.set_language(language)
 
-    @register_emsg(EMsg.ClientFromGC)
+    @register(EMsg.ClientFromGC)
     async def parse_gc_message(self, msg: MsgProto[CMsgGcClient]) -> None:
-        if msg.body.appid != steam.TF2:
+        if msg.body.appid != self.client.GAME:
             return
 
         try:
@@ -99,13 +82,13 @@ class GCState(ConnectionState):
                 pass
 
         try:
-            func = self.gc_parsers[language]
+            func = self.parsers[language]
         except KeyError:
             log.debug(f"Ignoring event {msg!r}")
         else:
-            await steam.utils.maybe_coroutine(func, self, msg)
+            await steam.utils.maybe_coroutine(func, msg)
 
-    @register(Language.ClientWelcome)
+    @register(Language.ClientWelcome)  # TODO should these use asyncio.Events?
     def parse_gc_client_connect(self, msg: GCMsgProto[cso_messages.CMsgClientWelcome]) -> None:
         self.dispatch("gc_connect", msg.body.version)
 
