@@ -8,7 +8,7 @@ from setuptools import setup
 ROOT = pathlib.Path(__file__).parent
 
 
-with open(ROOT / "steam" / "ext" / "tf" / "__init__.py") as f:
+with open(ROOT / "steam" / "ext" / "tf2" / "__init__.py") as f:
     try:
         VERSION = re.findall(r'^__version__\s*=\s*"([^"]*)"', f.read(), re.MULTILINE)[0]
     except IndexError:
@@ -46,7 +46,7 @@ setup(
         "Issue tracker": "https://github.com/Gobot1234/steam-ext-tf2/issues",
     },
     version=VERSION,
-    packages=["steam.ext.tf"],
+    packages=["steam.ext.tf2"],
     license="MIT",
     description="An extension for steam.py to interact with the Team Fortress 2 Game Coordinator",
     long_description=README,
