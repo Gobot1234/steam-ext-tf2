@@ -46,7 +46,7 @@ setup(
         "Issue tracker": "https://github.com/Gobot1234/steam-ext-tf2/issues",
     },
     version=VERSION,
-    packages=["steam.ext.tf2"],
+    packages=["steam.ext.tf2", "steam.ext.tf2.protobufs"],
     license="MIT",
     description="An extension for steam.py to interact with the Team Fortress 2 Game Coordinator",
     long_description=README,
