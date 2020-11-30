@@ -27,5 +27,5 @@ class BytesBuffer(BytesIO):
     def read_uint64(self, position: int = 8) -> int:
         return self.read_struct("<Q", position)[0]
 
-    def write_uint64(self, uint64) -> None:
+    def write_uint64(self, uint64: int) -> None:
         self.write_struct("<Q", uint64)

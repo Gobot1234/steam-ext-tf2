@@ -9,9 +9,9 @@ import steam
 
 from ...protobufs import GCMsg, GCMsgProto
 from .enums import BackpackSortType, Class, ItemQuality, ItemSlot, Language
+from .protobufs.base_gcmessages import CsoEconItem
 
 if TYPE_CHECKING:
-    from .protobufs.base_gcmessages import CsoEconItem, CsoEconItemAttribute, CsoEconItemEquipped
     from .state import GCState
 
 __all__ = (
@@ -20,7 +20,7 @@ __all__ = (
 )
 
 
-class BackPackItem(steam.Item):
+class BackPackItem(steam.Item, CsoEconItem):  # inherit CsoEconItem's attributes
     """A class to represent an item from the client's backpack.
 
     Attributes
@@ -59,28 +59,10 @@ class BackPackItem(steam.Item):
         "_state",
     )
 
-    id: int
     position: int
-    account_id: int
-    inventory: int
-    def_index: int
-    quantity: int
-    level: int
-    quality: int
-    flags: int
-    origin: int
-    custom_name: str
-    custom_desc: str
-    attribute: list[CsoEconItemAttribute]
-    interior_item: CsoEconItem
-    in_use: bool
-    style: int
-    original_id: int
-    contains_equipped_state: bool
-    equipped_state: list[CsoEconItemEquipped]
-    contains_equipped_state_v2: bool
 
     def __init__(self, item: steam.Item, state: GCState):
+        self._state = state
         for name, attr in inspect.getmembers(item):
             try:
                 setattr(self, name, attr)
@@ -90,7 +72,6 @@ class BackPackItem(steam.Item):
             self.quality = ItemQuality.try_value(self.quality)
         except AttributeError:
             pass
-        self._state = state
 
     def __repr__(self) -> str:
         item_repr = super().__repr__()[6:-1]

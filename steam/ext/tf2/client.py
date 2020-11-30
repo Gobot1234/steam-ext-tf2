@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional, Union, overload
+from typing import Any, TYPE_CHECKING, Callable, Optional, Union, overload
 
 import vdf
 from multidict import MultiDict
@@ -13,7 +13,6 @@ from typing_extensions import Final, Literal
 
 from steam import TF2, ClanInvite, Client, ClientUser, Comment, Game, Message, TradeOffer, User, UserInvite, Inventory
 from steam.ext import commands
-from steam.models import FunctionType
 from steam.protobufs import GCMsg
 
 from ...gateway import Msgs
@@ -34,12 +33,16 @@ __all__ = (
 
 
 class TF2ClientUser(ClientUser):
-    inventory: FetchBackPack
+    @overload
+    async def inventory(self, game: Literal[TF2]) -> BackPack:
+        ...
 
+    @overload
+    async def inventory(self, game: Game) -> Inventory:
+        ...
 
-class FetchBackPack(FunctionType):
-    async def __call__(self, game: Game) -> BackPack:
-        ...  # is there a better way to do this using literals?
+    async def inventory(self, game: Game) -> Union[Inventory, BackPack]:
+        return await super().inventory(game)
 
 
 class Client(Client):
@@ -96,7 +99,7 @@ class Client(Client):
 
     # boring subclass stuff
 
-    async def start(self, *args, **kwargs) -> None:
+    async def start(self, *args: Any, **kwargs: Any) -> None:
         self._gc_connect_task = self.loop.create_task(self._on_gc_connect())
         await super().start(*args, **kwargs)
 
@@ -108,6 +111,13 @@ class Client(Client):
             await self.ws.send_gc_message(GCMsg(Language.ClientHello))
             await asyncio.sleep(5)
 
+    async def _on_disconnect(self) -> None:
+        while True:
+            await self.wait_for("disconnect")
+            self._gc_connect_task.cancel()
+            await self.wait_for("connect")
+            self._gc_connect_task = self.loop.create_task(self._on_gc_connect())
+
     async def close(self) -> None:
         await self.ws.send_gc_message(GCMsg(Language.ClientGoodbye))
         self._gc_connect_task.cancel()
@@ -117,22 +127,12 @@ class Client(Client):
 
         async def on_gc_connect(self, version: int) -> None:
             """|coro|
-            Called after the client receives the welcome message from the  GC.
-
-            Parameters
-            ----------
-            version: :class:`int`
-                The version loaded.
+            Called after the client receives the welcome message from the GC.
             """
 
-        async def on_gc_disconnect(self, reason: str) -> None:
+        async def on_gc_disconnect(self) -> None:
             """|coro|
-            Called after the client receives the goodbye message from the  GC.
-
-            Parameters
-            ----------
-            reason: :class:`str`
-                The reason for the disconnect
+            Called after the client receives the goodbye message from the GC.
             """
 
         async def on_gc_ready(self) -> None:
@@ -150,8 +150,7 @@ class Client(Client):
             """
 
         # NOTE!!!!!!
-        # above should be safe from changes
-        # below are subject to changes and or may be broken
+        # these may be broken
 
         async def on_crafting_complete(self, craft: tf2.CraftResponse) -> None:
             """|coro|
@@ -213,37 +212,13 @@ class Client(Client):
         @overload
         async def wait_for(
             self,
-            event: Literal["connect"],
-            *,
-            check: Optional[Callable[[], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> None:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["disconnect"],
-            *,
-            check: Optional[Callable[[], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> None:
-            ...
-
-        @overload  # don't know why you'd do this
-        async def wait_for(
-            self,
-            event: Literal["ready"],
-            *,
-            check: Optional[Callable[[], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> None:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["login"],
+            event: Literal[
+                "connect",
+                "disconnect",
+                "ready",
+                "login",
+                "logout",
+            ],
             *,
             check: Optional[Callable[[], bool]] = ...,
             timeout: Optional[float] = ...,
@@ -255,7 +230,7 @@ class Client(Client):
             self,
             event: Literal["error"],
             *,
-            check: Optional[Callable[[str, Exception, tuple, dict], bool]] = ...,
+            check: Optional[Callable[[str, Exception, tuple[Any, ...], dict[str, Any]], bool]] = ...,
             timeout: Optional[float] = ...,
         ) -> tuple[str, Exception, tuple, dict]:
             ...
@@ -303,67 +278,15 @@ class Client(Client):
         @overload
         async def wait_for(
             self,
-            event: Literal["trade_receive"],
-            *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> TradeOffer:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["trade_send"],
-            *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> TradeOffer:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["trade_accept"],
-            *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> TradeOffer:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["trade_decline"],
-            *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> TradeOffer:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["trade_cancel"],
-            *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> TradeOffer:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["trade_expire"],
-            *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> TradeOffer:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["trade_counter"],
+            event: Literal[
+                "trade_receive",
+                "trade_send",
+                "trade_accept",
+                "trade_decline",
+                "trade_cancel",
+                "trade_expire",
+                "trade_counter",
+            ],
             *,
             check: Optional[Callable[[TradeOffer], bool]] = ...,
             timeout: Optional[float] = ...,
@@ -393,7 +316,10 @@ class Client(Client):
         @overload
         async def wait_for(
             self,
-            event: Literal["socket_receive"],
+            event: Literal[
+                "socket_receive",
+                "socket_send",
+            ],
             *,
             check: Optional[Callable[[Msgs], bool]] = ...,
             timeout: Optional[float] = ...,
@@ -403,7 +329,10 @@ class Client(Client):
         @overload
         async def wait_for(
             self,
-            event: Literal["socket_raw_receive"],
+            event: Literal[
+                "socket_raw_receive",
+                "socket_raw_send",
+            ],
             *,
             check: Optional[Callable[[bytes], bool]] = ...,
             timeout: Optional[float] = ...,
@@ -413,57 +342,12 @@ class Client(Client):
         @overload
         async def wait_for(
             self,
-            event: Literal["socket_send"],
-            *,
-            check: Optional[Callable[[Msgs], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> Msgs:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["socket_raw_send"],
-            *,
-            check: Optional[Callable[[bytes], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> bytes:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["gc_connect"],
-            *,
-            check: Optional[Callable[[], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> None:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["gc_disconnect"],
-            *,
-            check: Optional[Callable[[str], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> str:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["gc_ready"],
-            *,
-            check: Optional[Callable[[], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> None:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["account_update"],
+            event: Literal[
+                "gc_connect",
+                "gc_disconnect",
+                "gc_ready",
+                "account_update",
+            ],
             *,
             check: Optional[Callable[[], bool]] = ...,
             timeout: Optional[float] = ...,
@@ -493,37 +377,11 @@ class Client(Client):
         @overload
         async def wait_for(
             self,
-            event: Literal["backpack_update"],
-            *,
-            check: Optional[Callable[[BackPack], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> BackPack:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["item_receive"],
-            *,
-            check: Optional[Callable[[BackPackItem], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> BackPackItem:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["item_remove"],
-            *,
-            check: Optional[Callable[[BackPackItem], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> BackPackItem:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["item_update"],
+            event: Literal[
+                "item_receive",
+                "item_remove",
+                "item_update",
+            ],
             *,
             check: Optional[Callable[[BackPackItem], bool]] = ...,
             timeout: Optional[float] = ...,
@@ -537,37 +395,13 @@ class Bot(commands.Bot, Client):
         @overload
         async def wait_for(
             self,
-            event: Literal["connect"],
-            *,
-            check: Optional[Callable[[], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> None:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["disconnect"],
-            *,
-            check: Optional[Callable[[], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> None:
-            ...
-
-        @overload  # don't know why you'd do this
-        async def wait_for(
-            self,
-            event: Literal["ready"],
-            *,
-            check: Optional[Callable[[], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> None:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["login"],
+            event: Literal[
+                "connect",
+                "disconnect",
+                "ready",
+                "login",
+                "logout",
+            ],
             *,
             check: Optional[Callable[[], bool]] = ...,
             timeout: Optional[float] = ...,
@@ -579,7 +413,7 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["error"],
             *,
-            check: Optional[Callable[[str, Exception, tuple, dict], bool]] = ...,
+            check: Optional[Callable[[str, Exception, tuple[Any, ...], dict[str, Any]], bool]] = ...,
             timeout: Optional[float] = ...,
         ) -> tuple[str, Exception, tuple, dict]:
             ...
@@ -627,67 +461,15 @@ class Bot(commands.Bot, Client):
         @overload
         async def wait_for(
             self,
-            event: Literal["trade_receive"],
-            *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> TradeOffer:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["trade_send"],
-            *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> TradeOffer:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["trade_accept"],
-            *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> TradeOffer:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["trade_decline"],
-            *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> TradeOffer:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["trade_cancel"],
-            *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> TradeOffer:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["trade_expire"],
-            *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> TradeOffer:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["trade_counter"],
+            event: Literal[
+                "trade_receive",
+                "trade_send",
+                "trade_accept",
+                "trade_decline",
+                "trade_cancel",
+                "trade_expire",
+                "trade_counter",
+            ],
             *,
             check: Optional[Callable[[TradeOffer], bool]] = ...,
             timeout: Optional[float] = ...,
@@ -717,7 +499,10 @@ class Bot(commands.Bot, Client):
         @overload
         async def wait_for(
             self,
-            event: Literal["socket_receive"],
+            event: Literal[
+                "socket_receive",
+                "socket_send",
+            ],
             *,
             check: Optional[Callable[[Msgs], bool]] = ...,
             timeout: Optional[float] = ...,
@@ -727,27 +512,10 @@ class Bot(commands.Bot, Client):
         @overload
         async def wait_for(
             self,
-            event: Literal["socket_raw_receive"],
-            *,
-            check: Optional[Callable[[bytes], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> bytes:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["socket_send"],
-            *,
-            check: Optional[Callable[[Msgs], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> Msgs:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["socket_raw_send"],
+            event: Literal[
+                "socket_raw_receive",
+                "socket_raw_send",
+            ],
             *,
             check: Optional[Callable[[bytes], bool]] = ...,
             timeout: Optional[float] = ...,
@@ -787,37 +555,12 @@ class Bot(commands.Bot, Client):
         @overload
         async def wait_for(
             self,
-            event: Literal["gc_connect"],
-            *,
-            check: Optional[Callable[[], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> None:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["gc_disconnect"],
-            *,
-            check: Optional[Callable[[str], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> str:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["gc_ready"],
-            *,
-            check: Optional[Callable[[], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> None:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["account_update"],
+            event: Literal[
+                "gc_connect",
+                "gc_disconnect",
+                "gc_ready",
+                "account_update",
+            ],
             *,
             check: Optional[Callable[[], bool]] = ...,
             timeout: Optional[float] = ...,
@@ -847,37 +590,11 @@ class Bot(commands.Bot, Client):
         @overload
         async def wait_for(
             self,
-            event: Literal["backpack_update"],
-            *,
-            check: Optional[Callable[[BackPack], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> BackPack:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["item_receive"],
-            *,
-            check: Optional[Callable[[BackPackItem], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> BackPackItem:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["item_remove"],
-            *,
-            check: Optional[Callable[[BackPackItem], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> BackPackItem:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["item_update"],
+            event: Literal[
+                "item_receive",
+                "item_remove",
+                "item_update",
+            ],
             *,
             check: Optional[Callable[[BackPackItem], bool]] = ...,
             timeout: Optional[float] = ...,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING, Callable, Coroutine, Optional
+from typing import Any, TYPE_CHECKING, Callable, Coroutine, Optional
 
 from multidict import MultiDict
 
@@ -43,13 +43,13 @@ class GCState(ConnectionState):
         "_first_so_cache_check",
     )
 
-    def __init__(self, client: Client, http: HTTPClient, **kwargs):
+    def __init__(self, client: Client, http: HTTPClient, **kwargs: Any):
         super().__init__(client, http, **kwargs)
         self.schema: Optional[MultiDict] = None
         self.language: Optional[MultiDict] = None
         self._unpatched_inventory: Optional[Callable[[Game], Coroutine[None, None, Inventory]]] = None
         self._is_premium = None
-        self._first_so_cache_check = False
+        self._first_so_cache_check = True
 
         language = kwargs.get("language")
         if language is not None:
@@ -89,20 +89,20 @@ class GCState(ConnectionState):
             await steam.utils.maybe_coroutine(func, msg)
 
     @register(Language.ClientWelcome)  # TODO should these use asyncio.Events?
-    def parse_gc_client_connect(self, msg: GCMsgProto[cso_messages.CMsgClientWelcome]) -> None:
-        self.dispatch("gc_connect", msg.body.version)
+    def parse_gc_client_connect(self, _) -> None:
+        self.dispatch("gc_connect")
 
     @register(Language.ServerWelcome)
-    def parse_gc_server_connect(self, msg: GCMsgProto[cso_messages.CMsgServerWelcome]) -> None:
-        self.dispatch("gc_connect", msg.body.active_version)
+    def parse_gc_server_connect(self, _) -> None:
+        self.dispatch("gc_connect")
 
     @register(Language.ClientGoodbye)
-    def parse_client_goodbye(self, msg: GCMsgProto[cso_messages.CMsgClientGoodbye]) -> None:
-        self.dispatch("gc_disconnect", msg.body.reason)
+    def parse_client_goodbye(self, _) -> None:
+        self.dispatch("gc_disconnect")
 
     @register(Language.ServerGoodbye)
-    def parse_server_goodbye(self, msg: GCMsgProto[cso_messages.CMsgServerGoodbye]) -> None:
-        self.dispatch("gc_disconnect", msg.body.reason)
+    def parse_server_goodbye(self, _) -> None:
+        self.dispatch("gc_disconnect")
 
     @register(Language.UpdateItemSchema)
     async def parse_schema(self, msg: GCMsgProto[cso_messages.CMsgUpdateItemSchema]) -> None:
