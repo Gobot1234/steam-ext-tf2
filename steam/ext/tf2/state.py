@@ -11,7 +11,7 @@ from multidict import MultiDict
 import steam
 from steam import Game, Inventory
 from steam.protobufs import EMsg, GCMsg, GCMsgProto, MsgProto
-from steam.models import register
+from steam.models import EventParser, register
 from steam.state import ConnectionState
 
 from .backpack import BackPack
@@ -20,13 +20,11 @@ from .protobufs import base_gcmessages as cso_messages, gcsdk_gcmessages as so_m
 from .protobufs.protobufs import GCMsgProtos
 
 if TYPE_CHECKING:
-    from steam.http import HTTPClient
     from steam.protobufs.steammessages_clientserver_2 import CMsgGcClient
 
     from .client import Client
 
 log = logging.getLogger(__name__)
-EventParser = Callable[["GCState", GCMsgProto], Optional[Coroutine[None, None, None]]]
 
 
 class GCState(ConnectionState):
@@ -43,8 +41,8 @@ class GCState(ConnectionState):
         "_first_so_cache_check",
     )
 
-    def __init__(self, client: Client, http: HTTPClient, **kwargs: Any):
-        super().__init__(client, http, **kwargs)
+    def __init__(self, client: Client, **kwargs: Any):
+        super().__init__(client, **kwargs)
         self.schema: Optional[MultiDict] = None
         self.language: Optional[MultiDict] = None
         self._unpatched_inventory: Optional[Callable[[Game], Coroutine[None, None, Inventory]]] = None
@@ -80,7 +78,7 @@ class GCState(ConnectionState):
                 )
 
         try:
-            func = self.parsers[language]
+            func = self.gc_parsers[language]
         except KeyError:
             if log.isEnabledFor(logging.DEBUG):
                 log.debug(f"Ignoring event {msg!r}")
@@ -186,10 +184,7 @@ class GCState(ConnectionState):
 
     @register(Language.SOCreate)
     async def parse_item_add(self, msg: GCMsg[so_messages.CMsgSOSingleObject]) -> None:
-        if msg.body.type_id != 1:
-            return  # not an item
-
-        if not self.backpack:
+        if msg.body.type_id != 1 or not self.backpack:
             return  # we don't have our backpack yet
 
         received_item = cso_messages.CsoEconItem().parse(msg.body.object_data)
