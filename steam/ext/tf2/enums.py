@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from steam import IntEnum
+from ...enums import Enum, IntEnum
 
 
 # fmt: off
@@ -38,7 +38,7 @@ class TradeResponse(IntEnum):
     OKToDeliver                     = 50
 
 
-class Class(IntEnum):
+class Mercenary(IntEnum):
     Scout    = 1
     Sniper   = 2
     Soldier  = 3
@@ -69,6 +69,15 @@ class ItemSlot(IntEnum):
     Taunt6    = 16
     Taunt7    = 17
     Taunt8    = 18
+    Misc      = 100  # not actually real but good for BackPackItem.slot
+
+
+class WearLevel(Enum):
+    FactoryNew    = "Factory New"
+    MinimalWear   = "Minimal Wear"
+    FieldTested   = "Field Tested"
+    WellWorn      = "Well Worn"
+    BattleScarred = "Battle Scarred"
 
 
 class BackpackSortType(IntEnum):  # N.B only in game ones will actually work
@@ -89,20 +98,20 @@ class ItemFlags(IntEnum):
 
 
 class ItemQuality(IntEnum):
-    Normal = 0
-    Genuine = 1
-    Vintage = 3
-    Rarity3 = 4
-    Unusual = 5
-    Unique = 6
-    Community = 7
-    Valve = 8
-    SelfMade = 9
-    Customized = 10
-    Strange = 11
-    Completed = 12
-    Haunted = 13
-    Collectors = 14
+    Normal          = 0
+    Genuine         = 1
+    Vintage         = 3
+    Rarity3         = 4
+    Unusual         = 5
+    Unique          = 6
+    Community       = 7
+    Valve           = 8
+    SelfMade        = 9
+    Customized      = 10
+    Strange         = 11
+    Completed       = 12
+    Haunted         = 13
+    Collectors      = 14
     DecoratedWeapon = 15
 
 

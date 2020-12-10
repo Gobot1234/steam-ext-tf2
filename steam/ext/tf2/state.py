@@ -74,17 +74,16 @@ class GCState(ConnectionState):
         except Exception as exc:
             return log.error(f"Failed to deserialize message: {language!r}, {msg.body.payload!r}", exc_info=exc)
         else:
-            try:
+            if log.isEnabledFor(logging.DEBUG):
                 log.debug(
                     f"Socket has received GC message {msg!r} from the websocket."
-                )  # see https://github.com/danielgtaylor/python-betterproto/issues/133
-            except Exception:
-                pass
+                )
 
         try:
             func = self.parsers[language]
         except KeyError:
-            log.debug(f"Ignoring event {msg!r}")
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug(f"Ignoring event {msg!r}")
         else:
             await steam.utils.maybe_coroutine(func, msg)
 

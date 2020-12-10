@@ -52,7 +52,7 @@ class Client(Client):
 
     user: Optional[TF2ClientUser]
 
-    def __init__(self, loop: Optional[asyncio.AbstractEventLoop] = None, **options):
+    def __init__(self, loop: Optional[asyncio.AbstractEventLoop] = None, **options: Any):
         game = options.pop("game", None)
         if game is not None:  # don't let them overwrite the main game
             try:
@@ -79,11 +79,14 @@ class Client(Client):
         return self._connection._is_premium
 
     def set_language(self, file: Union[Path, str]) -> None:
-        """Set the localization files for your bot."""
+        """Set the localization files for your bot.
+
+        This isn't necessary in most situations.
+        """
         file = Path(file).resolve()
         self._connection.language = self.VDF_DECODER(file.read_text())
 
-    async def craft(self, items: list[BackPackItem], recipe: int = -2):
+    async def craft(self, items: list[BackPackItem], recipe: int = -2) -> None:
         """|coro|
         Craft a set of items together with an optional recipe
 
@@ -101,6 +104,7 @@ class Client(Client):
 
     async def start(self, *args: Any, **kwargs: Any) -> None:
         self._gc_connect_task = self.loop.create_task(self._on_gc_connect())
+        self.loop.create_task(self._on_disconnect())
         await super().start(*args, **kwargs)
 
     async def _on_gc_connect(self) -> None:
@@ -108,7 +112,7 @@ class Client(Client):
         self._connection._unpatched_inventory = self.user.inventory
         await self.wait_for("gc_connect")
         while True:  # this is ok-ish as gateway.KeepAliveHandler should catch any blocking and disconnects
-            await self.ws.send_gc_message(GCMsg(Language.ClientHello))
+            await self.ws.socket._pong_response_cb.send_gc_message(GCMsg(Language.ClientHello))
             await asyncio.sleep(5)
 
     async def _on_disconnect(self) -> None:
@@ -162,7 +166,7 @@ class Client(Client):
                 The completed crafting recipe.
             """
 
-        async def on_backpack_update(self, backpack: tf2.BackPack):
+        async def on_backpack_update(self, backpack: tf2.BackPack) -> None:
             """|coro|
             Called when the client's backpack is updated.
 
@@ -177,7 +181,7 @@ class Client(Client):
                 The client's backpack.
             """
 
-        async def on_item_receive(self, item: tf2.BackPackItem):
+        async def on_item_receive(self, item: tf2.BackPackItem) -> None:
             """|coro|
             Called when the client receives an item.
 
@@ -187,7 +191,7 @@ class Client(Client):
                 The received item.
             """
 
-        async def on_item_remove(self, item: tf2.BackPackItem):
+        async def on_item_remove(self, item: tf2.BackPackItem) -> None:
             """|coro|
             Called when the client has an item removed from its inventory.
 
@@ -197,7 +201,7 @@ class Client(Client):
                 The removed item.
             """
 
-        async def on_item_update(self, before: tf2.BackPackItem, after: tf2.BackPackItem):
+        async def on_item_update(self, before: tf2.BackPackItem, after: tf2.BackPackItem) -> None:
             """|coro|
             Called when the client has an item in its inventory updated.
 

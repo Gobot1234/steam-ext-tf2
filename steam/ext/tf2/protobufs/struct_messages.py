@@ -2,32 +2,31 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypeVar
 
 from ..utils import BytesBuffer
+
+T = TypeVar("T", bound="MessageBase")
 
 # some custom messages to make things a lot easier decoding/encoding wise
 
 
 class MessageBase:
-    def __init__(self, **kwargs):
-        for key in self.__annotations__:
-            setattr(self, key, None)
-
+    def __init__(self, **kwargs: Any):
         for key, value in kwargs.items():
             if key not in self.__annotations__:
-                raise TypeError(f"__init__ got an unexpected key word argument {key}")
+                raise TypeError(f"__init__ got an unexpected key word argument {key!r}")
             setattr(self, key, value)
 
-    def from_dict(self, dict: dict[str, Any]) -> MessageBase:
+    def from_dict(self: T, dict: dict[str, Any]) -> T:
         for key, value in dict.items():
             if key not in self.__annotations__:
-                raise TypeError(f"{self.__class__.__name__} got an unexpected key word argument {key}")
+                raise TypeError(f"{self.__class__.__name__} got an unexpected key word argument {key!r}")
             setattr(self, key, value)
 
         return self
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, _, __) -> dict[str, Any]:
         return {key: getattr(self, key) for key in self.__annotations__}
 
     def __bytes__(self) -> bytes:

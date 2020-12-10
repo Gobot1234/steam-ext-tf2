@@ -7,4 +7,5 @@ __version__ = "1.0.0a"
 
 from .backpack import *
 from .client import *
+from .enums import *
 from .protobufs.struct_messages import CraftResponse

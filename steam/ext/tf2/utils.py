@@ -9,7 +9,7 @@ class BytesBuffer(BytesIO):
         buffer = self.read(position or struct.calcsize(format))
         return struct.unpack(format, buffer)
 
-    def write_struct(self, format: str, to_write: int):
+    def write_struct(self, format: str, to_write: int) -> None:
         self.write(struct.pack(format, to_write))
 
     def read_int16(self, position: int = 2) -> int:
