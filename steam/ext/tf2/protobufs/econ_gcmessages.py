@@ -8,13 +8,13 @@ from typing import List
 import betterproto
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgApplyAutograph(betterproto.Message):
     autograph_item_id: int = betterproto.uint64_field(1)
     item_item_id: int = betterproto.uint64_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgEconPlayerStrangeCountAdjustment(betterproto.Message):
     account_id: int = betterproto.uint32_field(1)
     strange_count_adjustments: List[
@@ -22,129 +22,129 @@ class CMsgEconPlayerStrangeCountAdjustment(betterproto.Message):
     ] = betterproto.message_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgEconPlayerStrangeCountAdjustmentCStrangeCountAdjustment(betterproto.Message):
     event_type: int = betterproto.uint32_field(1)
     item_id: int = betterproto.uint64_field(2)
     adjustment: int = betterproto.uint32_field(3)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgRequestItemPurgatoryFinalizePurchase(betterproto.Message):
     item_ids: List[int] = betterproto.uint64_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgRequestItemPurgatoryFinalizePurchaseResponse(betterproto.Message):
     result: int = betterproto.uint32_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgRequestItemPurgatoryRefundPurchase(betterproto.Message):
     item_id: int = betterproto.uint64_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgRequestItemPurgatoryRefundPurchaseResponse(betterproto.Message):
     result: int = betterproto.uint32_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgCraftingResponse(betterproto.Message):
     item_ids: List[int] = betterproto.uint64_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcRequestStoreSalesData(betterproto.Message):
     version: int = betterproto.uint32_field(1)
     currency: int = betterproto.uint32_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcRequestStoreSalesDataResponse(betterproto.Message):
     sale_price: List["CMsgGcRequestStoreSalesDataResponsePrice"] = betterproto.message_field(1)
     version: int = betterproto.uint32_field(2)
     expiration_time: int = betterproto.uint32_field(3)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcRequestStoreSalesDataResponsePrice(betterproto.Message):
     item_def: int = betterproto.uint32_field(1)
     price: int = betterproto.uint32_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcRequestStoreSalesDataUpToDateResponse(betterproto.Message):
     version: int = betterproto.uint32_field(1)
     expiration_time: int = betterproto.uint32_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcToGcPingRequest(betterproto.Message):
     pass
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcToGcPingResponse(betterproto.Message):
     pass
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcToGcGetUserSessionServer(betterproto.Message):
     account_id: int = betterproto.uint32_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcToGcGetUserSessionServerResponse(betterproto.Message):
     server_steam_id: int = betterproto.fixed64_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcToGcGetUserServerMembers(betterproto.Message):
     account_id: int = betterproto.uint32_field(1)
     max_spectators: int = betterproto.uint32_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcToGcGetUserServerMembersResponse(betterproto.Message):
     member_account_id: List[int] = betterproto.uint32_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgLookupMultipleAccountNames(betterproto.Message):
     accountids: List[int] = betterproto.uint32_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgLookupMultipleAccountNamesResponse(betterproto.Message):
     accounts: List["CMsgLookupMultipleAccountNamesResponseAccount"] = betterproto.message_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgLookupMultipleAccountNamesResponseAccount(betterproto.Message):
     accountid: int = betterproto.uint32_field(1)
     persona: str = betterproto.string_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcToGcGrantSelfMadeItemToAccount(betterproto.Message):
     item_def_index: int = betterproto.uint32_field(1)
     accountid: int = betterproto.uint32_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcToGcThankedByNewUser(betterproto.Message):
     new_user_accountid: int = betterproto.uint32_field(1)
     thanked_user_accountid: int = betterproto.uint32_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcShuffleCrateContents(betterproto.Message):
     crate_item_id: int = betterproto.uint64_field(1)
     user_code_string: str = betterproto.string_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcQuestObjectiveProgress(betterproto.Message):
     quest_id: int = betterproto.uint64_field(1)
     quest_attrib_index: int = betterproto.uint32_field(2)
@@ -152,7 +152,7 @@ class CMsgGcQuestObjectiveProgress(betterproto.Message):
     owner_steamid: int = betterproto.fixed64_field(4)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcQuestObjectivePointsChange(betterproto.Message):
     quest_id: int = betterproto.uint64_field(1)
     owner_steamid: int = betterproto.fixed64_field(4)
@@ -162,43 +162,43 @@ class CMsgGcQuestObjectivePointsChange(betterproto.Message):
     points_2: int = betterproto.uint32_field(8)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcQuestCompleteRequest(betterproto.Message):
     quest_id: int = betterproto.uint64_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcQuestCompleted(betterproto.Message):
     pass
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcQuestObjectiveRequestLoanerItems(betterproto.Message):
     quest_id: int = betterproto.uint64_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcQuestObjectiveRequestLoanerResponse(betterproto.Message):
     pass
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgCraftCollectionUpgrade(betterproto.Message):
     item_id: List[int] = betterproto.uint64_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgCraftHalloweenOffering(betterproto.Message):
     tool_id: int = betterproto.uint64_field(1)
     item_id: List[int] = betterproto.uint64_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgCraftCommonStatClock(betterproto.Message):
     tool_id: int = betterproto.uint64_field(1)
     item_id: List[int] = betterproto.uint64_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CMsgGcQuestDiscardRequest(betterproto.Message):
     quest_id: int = betterproto.uint64_field(1)

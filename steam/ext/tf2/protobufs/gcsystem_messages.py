@@ -8,25 +8,25 @@ from typing import List
 import betterproto
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CCommunityGamePersonalDataCategoryInfo(betterproto.Message):
     type: str = betterproto.string_field(1)
     localization_token: str = betterproto.string_field(2)
     template_file: str = betterproto.string_field(3)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CCommunityGetGamePersonalDataCategoriesRequest(betterproto.Message):
     appid: int = betterproto.uint32_field(1)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CCommunityGetGamePersonalDataCategoriesResponse(betterproto.Message):
     categories: List["CCommunityGamePersonalDataCategoryInfo"] = betterproto.message_field(1)
     app_assets_basename: str = betterproto.string_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CCommunityGetGamePersonalDataEntriesRequest(betterproto.Message):
     appid: int = betterproto.uint32_field(1)
     steamid: int = betterproto.uint64_field(2)
@@ -34,19 +34,19 @@ class CCommunityGetGamePersonalDataEntriesRequest(betterproto.Message):
     continue_token: str = betterproto.string_field(4)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CCommunityGetGamePersonalDataEntriesResponse(betterproto.Message):
     gceresult: int = betterproto.uint32_field(1)
     entries: List[str] = betterproto.string_field(2)
     continue_token: str = betterproto.string_field(3)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CCommunityTerminateGamePersonalDataEntriesRequest(betterproto.Message):
     appid: int = betterproto.uint32_field(1)
     steamid: int = betterproto.uint64_field(2)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class CCommunityTerminateGamePersonalDataEntriesResponse(betterproto.Message):
     gceresult: int = betterproto.uint32_field(1)

@@ -112,7 +112,7 @@ class Client(Client):
         self._connection._unpatched_inventory = self.user.inventory
         await self.wait_for("gc_connect")
         while True:  # this is ok-ish as gateway.KeepAliveHandler should catch any blocking and disconnects
-            await self.ws.socket._pong_response_cb.send_gc_message(GCMsg(Language.ClientHello))
+            await self.ws.send_gc_message(GCMsg(Language.ClientHello))
             await asyncio.sleep(5)
 
     async def _on_disconnect(self) -> None:
@@ -123,9 +123,12 @@ class Client(Client):
             self._gc_connect_task = self.loop.create_task(self._on_gc_connect())
 
     async def close(self) -> None:
-        await self.ws.send_gc_message(GCMsg(Language.ClientGoodbye))
-        self._gc_connect_task.cancel()
-        await super().close()
+        try:
+            await self.ws.send_gc_message(GCMsg(Language.ClientGoodbye))
+            await self.change_presence(game=Game(id=0))  # disconnect from games
+            self._gc_connect_task.cancel()
+        finally:
+            await super().close()
 
     if TYPE_CHECKING:
 

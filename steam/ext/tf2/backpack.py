@@ -199,7 +199,7 @@ class BackPackItem(Item):
 
     @property
     def slot(self) -> Optional[ItemSlot]:
-        for tag in self.tags:
+        for tag in self.tags:  # Craft_Item and Tf_Gift fail this
             if tag.get("category") == "Type" and "internal_name" in tag:
                 return ItemSlot[pascal_case(tag["internal_name"], strict=False).replace("Pda", "PDA")]
 
@@ -215,7 +215,7 @@ class BackPackItem(Item):
 if TYPE_CHECKING:
 
     class BackPackItem(BackPackItem, CsoEconItem):
-        """We don't want the extra blot of betterproto.Message at runtime"""
+        """We don't want the extra bloat of betterproto.Message at runtime"""
 
 
 class BackPack(Inventory[BPI]):
@@ -242,7 +242,7 @@ class BackPack(Inventory[BPI]):
         items_and_positions: list[tuple[:class:`BackPackItem`, int]]
             A list of (item, position) pairs to set the positions for.
         """  # TODO is this 0 indexed?
-        item_positions = [(item.id, position) for item, position in items_and_positions]
+        item_positions = [{"item_id": item.id, "position": position} for item, position in items_and_positions]
         msg = GCMsgProto(Language.SetItemPositions, item_positions=item_positions)
         await self._state.ws.send_gc_message(msg)
 

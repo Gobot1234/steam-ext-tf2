@@ -55,7 +55,7 @@ class GCState(ConnectionState):
 
     @register(EMsg.ClientFromGC)
     async def parse_gc_message(self, msg: MsgProto[CMsgGcClient]) -> None:
-        if msg.body.appid != self.client.GAME:
+        if msg.body.appid != self.client.GAME.id:
             return
 
         try:
@@ -70,6 +70,9 @@ class GCState(ConnectionState):
                 GCMsgProto(language, msg.body.payload) if language in GCMsgProtos else GCMsg(language, msg.body.payload)
             )
         except Exception as exc:
+            if language == language.SOCacheSubscriptionCheck:
+                # This payload is either commonly malformed or I just get very unlucky with it.
+                return await self.parse_cache_check(None)
             return log.error(f"Failed to deserialize message: {language!r}, {msg.body.payload!r}", exc_info=exc)
         else:
             if log.isEnabledFor(logging.DEBUG):
@@ -153,7 +156,7 @@ class GCState(ConnectionState):
 
         self.client.user.__class__.inventory = inventory
 
-    async def update_inventory(self, items: list[cso_messages.CsoEconItem]) -> BackPack:
+    async def update_backpack(self, items: list[cso_messages.CsoEconItem]) -> BackPack:
         backpack = BackPack(await self._unpatched_inventory(steam.TF2))
         for item in backpack:
             for backpack_item in items:
@@ -173,7 +176,7 @@ class GCState(ConnectionState):
         for cache in msg.body.objects:
             if cache.type_id == 1:  # backpack
                 items = [cso_messages.CsoEconItem().parse(item_data) for item_data in cache.object_data]
-                await self.update_inventory(items)
+                await self.update_backpack(items)
             elif cache.type_id == 7:  # account metadata
                 proto = cso_messages.CsoEconGameAccountClient().parse(cache.object_data[0])
                 self._is_premium = not proto.trial_account
@@ -188,7 +191,7 @@ class GCState(ConnectionState):
             return  # we don't have our backpack yet
 
         received_item = cso_messages.CsoEconItem().parse(msg.body.object_data)
-        inventory = await self.update_inventory([received_item])
+        inventory = await self.update_backpack([received_item])
         item = steam.utils.find(lambda i: i.id == received_item.id, inventory)
         self.dispatch("item_receive", item)
 
@@ -208,7 +211,7 @@ class GCState(ConnectionState):
 
             received_item = cso_messages.CsoEconItem().parse(item.object_data)
             old_item = steam.utils.find(lambda i: i.id == received_item.id, self.backpack)
-            await self.update_inventory([received_item])
+            await self.update_backpack([received_item])
             new_item = steam.utils.find(lambda i: i.id == received_item.id, self.backpack)
             self.dispatch("item_update", old_item, new_item)
         elif item.type_id == 7:
@@ -218,7 +221,7 @@ class GCState(ConnectionState):
                 self._is_premium = not proto.trial_account
                 self.backpack_slots = backpack_slots
                 self.dispatch("account_update")
-        else:
+        else:  # updated asset ids go here TODO
             log.debug(f"Unknown SO type {item.type_id} updated")
 
     @register(Language.SODestroy)
