@@ -17,7 +17,6 @@ from steam.state import ConnectionState
 from .backpack import BackPack
 from .enums import Language
 from .protobufs import base_gcmessages as cso_messages, gcsdk_gcmessages as so_messages, struct_messages
-from .protobufs.protobufs import GCMsgProtos
 
 if TYPE_CHECKING:
     from steam.protobufs.steammessages_clientserver_2 import CMsgGcClient
@@ -67,18 +66,18 @@ class GCState(ConnectionState):
 
         try:
             msg = (
-                GCMsgProto(language, msg.body.payload) if language in GCMsgProtos else GCMsg(language, msg.body.payload)
+                GCMsgProto(language, msg.body.payload)
+                if steam.utils.is_proto(msg.body.msgtype)
+                else GCMsg(language, msg.body.payload)
             )
         except Exception as exc:
             if language == language.SOCacheSubscriptionCheck:
-                # This payload is either commonly malformed or I just get very unlucky with it.
-                return await self.parse_cache_check(None)
+                # This payload is commonly malformed
+                return await self.parse_cache_check()
             return log.error(f"Failed to deserialize message: {language!r}, {msg.body.payload!r}", exc_info=exc)
         else:
             if log.isEnabledFor(logging.DEBUG):
-                log.debug(
-                    f"Socket has received GC message {msg!r} from the websocket."
-                )
+                log.debug(f"Socket has received GC message {msg!r} from the websocket.")
 
         try:
             func = self.gc_parsers[language]
@@ -135,14 +134,15 @@ class GCState(ConnectionState):
     @register(Language.CraftResponse)
     def parse_crafting_response(self, msg: GCMsg[struct_messages.CraftResponse]) -> None:
         for idx, item_id in enumerate(msg.body.id_list):
-            item = steam.utils.find(lambda i: i.id == item_id, self.backpack)
+            item = steam.utils.find(lambda i: i.id == item_id, self.backpack)  # might need a lock for this to work
+            # consistently
             if item is not None:  # TODO is this useful?
                 msg.body.id_list[idx] = item
 
         self.dispatch("crafting_complete", msg.body)
 
     @register(Language.SOCacheSubscriptionCheck)
-    async def parse_cache_check(self, _) -> None:
+    async def parse_cache_check(self, _=None) -> None:
         log.debug("Requesting SO cache subscription refresh")
         msg = GCMsgProto(Language.SOCacheSubscriptionRefresh, owner=self.client.user.id64)
         await self.ws.send_gc_message(msg)
@@ -188,7 +188,7 @@ class GCState(ConnectionState):
     @register(Language.SOCreate)
     async def parse_item_add(self, msg: GCMsg[so_messages.CMsgSOSingleObject]) -> None:
         if msg.body.type_id != 1 or not self.backpack:
-            return  # we don't have our backpack yet
+            return
 
         received_item = cso_messages.CsoEconItem().parse(msg.body.object_data)
         inventory = await self.update_backpack([received_item])
@@ -234,8 +234,6 @@ class GCState(ConnectionState):
             if item.asset_id == received_item.id:
                 for attribute_name in received_item.__dataclass_fields__:
                     setattr(item, attribute_name, getattr(received_item, attribute_name))
-                is_new = (received_item.inventory >> 30) & 1
-                item.position = 0 if is_new else received_item.inventory & 0xFFFF
                 self.backpack.items.remove(item)
                 self.dispatch("item_remove", item)
                 break

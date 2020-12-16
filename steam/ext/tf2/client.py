@@ -13,7 +13,7 @@ from typing_extensions import Final, Literal
 
 from steam import TF2, ClanInvite, Client, ClientUser, Comment, Game, Message, TradeOffer, User, UserInvite, Inventory
 from steam.ext import commands
-from steam.protobufs import GCMsg
+from steam.protobufs import GCMsg, GCMsgProto
 
 from ...gateway import Msgs
 from ..commands import Context
@@ -88,14 +88,15 @@ class Client(Client):
 
     async def craft(self, items: list[BackPackItem], recipe: int = -2) -> None:
         """|coro|
-        Craft a set of items together with an optional recipe
+        Craft a set of items together with an optional recipe.
 
         Parameters
         ----------
         items: list[:class:`BackPackItem`]
             The items to craft.
         recipe: :class:`int`
-            The recipe to craft them with default is -2 (wildcard).
+            The recipe to craft them with default is -2 (wildcard). See
+            https://github.com/DontAskM8/TF2-Crafting-Recipe/blob/master/craftRecipe.json for recipe details.
         """
         msg = GCMsg(Language.Craft, recipe=recipe, items=[item.id for item in items])
         await self.ws.send_gc_message(msg)
@@ -104,7 +105,7 @@ class Client(Client):
 
     async def start(self, *args: Any, **kwargs: Any) -> None:
         self._gc_connect_task = self.loop.create_task(self._on_gc_connect())
-        self.loop.create_task(self._on_disconnect())
+        self._gc_disconnect_task = self.loop.create_task(self._on_disconnect())
         await super().start(*args, **kwargs)
 
     async def _on_gc_connect(self) -> None:
@@ -112,7 +113,7 @@ class Client(Client):
         self._connection._unpatched_inventory = self.user.inventory
         await self.wait_for("gc_connect")
         while True:  # this is ok-ish as gateway.KeepAliveHandler should catch any blocking and disconnects
-            await self.ws.send_gc_message(GCMsg(Language.ClientHello))
+            await self.ws.send_gc_message(GCMsgProto(Language.ClientHello))
             await asyncio.sleep(5)
 
     async def _on_disconnect(self) -> None:
@@ -124,8 +125,9 @@ class Client(Client):
 
     async def close(self) -> None:
         try:
-            await self.ws.send_gc_message(GCMsg(Language.ClientGoodbye))
+            await self.ws.send_gc_message(GCMsgProto(Language.ClientGoodbye))
             await self.change_presence(game=Game(id=0))  # disconnect from games
+            self._gc_disconnect_task.cancel()
             self._gc_connect_task.cancel()
         finally:
             await super().close()

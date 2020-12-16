@@ -11,22 +11,23 @@ T = TypeVar("T", bound="MessageBase")
 # some custom messages to make things a lot easier decoding/encoding wise
 
 
-class MessageBase:
-    def __init__(self, **kwargs: Any):
-        for key, value in kwargs.items():
-            if key not in self.__annotations__:
-                raise TypeError(f"__init__ got an unexpected key word argument {key!r}")
-            setattr(self, key, value)
+class MessageMeta(type):
+    def __new__(mcs, name: str, bases: tuple[type, ...], attrs: dict[str, Any]) -> MessageBase:
+        attrs["__slots__"] = slots = tuple(attrs.get("__annotations__", ()))
+        exec(
+            f"def __init__(self, {', '.join(f'{slot}=None' for slot in slots)}): "
+            f"{' '.join(f'self.{slot} = {slot};' for slot in slots) or 'pass'}\n"
+            f"attrs['__init__'] = __init__"
+        )
+        return super().__new__(mcs, name, bases, attrs)
 
+
+class MessageBase(metaclass=MessageMeta):
     def from_dict(self: T, dict: dict[str, Any]) -> T:
-        for key, value in dict.items():
-            if key not in self.__annotations__:
-                raise TypeError(f"{self.__class__.__name__} got an unexpected key word argument {key!r}")
-            setattr(self, key, value)
-
+        self.__init__(**dict)
         return self
 
-    def to_dict(self, _, __) -> dict[str, Any]:
+    def to_dict(self, *_) -> dict[str, Any]:
         return {key: getattr(self, key) for key in self.__annotations__}
 
     def __bytes__(self) -> bytes:
@@ -52,14 +53,10 @@ class CraftRequest(MessageBase):
 
 
 class CraftResponse(MessageBase):
-    blueprint: int
-    unknown: int
     id_list: list[int]
 
     def parse(self, data: bytes) -> CraftResponse:
-        buffer = BytesBuffer(data)
-        self.blueprint = buffer.read_int16()
-        self.unknown = buffer.read_uint32()
+        buffer = BytesBuffer(data)  # I dont think
         id_count = buffer.read_int16()
         self.id_list = [buffer.read_uint64() for _ in range(id_count)]
 

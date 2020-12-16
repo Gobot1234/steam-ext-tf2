@@ -31,7 +31,7 @@ WEARS: dict[str, WearLevel] = {
     "(Minimal Wear)": WearLevel.MinimalWear,
     "(Factory New)": WearLevel.FactoryNew,
 }
-WEAR_PARSER = re.compile('|'.join(wear.replace("(", "\(").replace(")", "\)") for wear in WEARS))
+WEAR_PARSER = re.compile("|".join(wear.replace("(", "\(").replace(")", "\)") for wear in WEARS))
 BPI = TypeVar("BPI", bound="BackPackItem")
 
 
@@ -53,9 +53,7 @@ class BackPackItem(Item):
     __slots__ = (
         "position",
         "_state",
-    ) + tuple(
-        CsoEconItem.__annotations__
-    )
+    ) + tuple(CsoEconItem.__annotations__)
 
     position: int
     quality: Optional[ItemQuality]
@@ -179,10 +177,7 @@ class BackPackItem(Item):
         return "Australium" in self.name and self.name != "Australium Gold"
 
     def is_craftable(self) -> bool:
-        return all(
-            description.get("value") != "( Not Usable in Crafting )"
-            for description in self.descriptions
-        )
+        return all(description.get("value") != "( Not Usable in Crafting )" for description in self.descriptions)
 
     def is_unusual(self) -> bool:
         return self.quality == ItemQuality.Unusual
@@ -215,7 +210,8 @@ class BackPackItem(Item):
 if TYPE_CHECKING:
 
     class BackPackItem(BackPackItem, CsoEconItem):
-        """We don't want the extra bloat of betterproto.Message at runtime"""
+        # We don't want the extra bloat of betterproto.Message at runtime but we do want its fields
+        ...
 
 
 class BackPack(Inventory[BPI]):
@@ -241,9 +237,13 @@ class BackPack(Inventory[BPI]):
         ----------
         items_and_positions: list[tuple[:class:`BackPackItem`, int]]
             A list of (item, position) pairs to set the positions for.
-        """  # TODO is this 0 indexed?
-        item_positions = [{"item_id": item.id, "position": position} for item, position in items_and_positions]
-        msg = GCMsgProto(Language.SetItemPositions, item_positions=item_positions)
+        """
+        # TODO is this 0 indexed?
+        # Warning this crashes the bot atm
+        msg = GCMsgProto(
+            Language.SetItemPositions,
+            item_positions=[{"item_id": item.id, "position": position} for item, position in items_and_positions],
+        )
         await self._state.ws.send_gc_message(msg)
 
     async def sort(self, type: BackpackSortType) -> None:
