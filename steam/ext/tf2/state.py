@@ -44,8 +44,9 @@ class GCState(ConnectionState):
         super().__init__(client, **kwargs)
         self.schema: Optional[MultiDict] = None
         self.language: Optional[MultiDict] = None
+        self.backpack_slots: Optional[int] = None
         self._unpatched_inventory: Optional[Callable[[Game], Coroutine[None, None, Inventory]]] = None
-        self._is_premium = None
+        self._is_premium: Optional[bool] = None
         self._first_so_cache_check = True
 
         language = kwargs.get("language")
@@ -133,13 +134,11 @@ class GCState(ConnectionState):
 
     @register(Language.CraftResponse)
     def parse_crafting_response(self, msg: GCMsg[struct_messages.CraftResponse]) -> None:
-        for idx, item_id in enumerate(msg.body.id_list):
-            item = steam.utils.find(lambda i: i.id == item_id, self.backpack)  # might need a lock for this to work
-            # consistently
-            if item is not None:  # TODO is this useful?
-                msg.body.id_list[idx] = item
-
-        self.dispatch("crafting_complete", msg.body)
+        # this is called after item_receive so no fetching is necessary
+        self.dispatch(
+            "crafting_complete",
+            *[steam.utils.find(lambda i: i.asset_id == item_id, self.backpack) for item_id in msg.body.id_list],
+        )
 
     @register(Language.SOCacheSubscriptionCheck)
     async def parse_cache_check(self, _=None) -> None:
@@ -156,15 +155,13 @@ class GCState(ConnectionState):
 
         self.client.user.__class__.inventory = inventory
 
-    async def update_backpack(self, items: list[cso_messages.CsoEconItem]) -> BackPack:
+    async def update_backpack(self, *items: cso_messages.CsoEconItem) -> BackPack:
         backpack = BackPack(await self._unpatched_inventory(steam.TF2))
         for item in backpack:
             for backpack_item in items:
                 if item.asset_id == backpack_item.id:
-                    for attribute_name in backpack_item.__dataclass_fields__:
+                    for attribute_name in backpack_item.__annotations__:
                         setattr(item, attribute_name, getattr(backpack_item, attribute_name))
-                    is_new = (backpack_item.inventory >> 30) & 1
-                    item.position = 0 if is_new else backpack_item.inventory & 0xFFFF
                     break
 
         self.patch_user_inventory(backpack)
@@ -176,7 +173,7 @@ class GCState(ConnectionState):
         for cache in msg.body.objects:
             if cache.type_id == 1:  # backpack
                 items = [cso_messages.CsoEconItem().parse(item_data) for item_data in cache.object_data]
-                await self.update_backpack(items)
+                await self.update_backpack(*items)
             elif cache.type_id == 7:  # account metadata
                 proto = cso_messages.CsoEconGameAccountClient().parse(cache.object_data[0])
                 self._is_premium = not proto.trial_account
@@ -191,9 +188,18 @@ class GCState(ConnectionState):
             return
 
         received_item = cso_messages.CsoEconItem().parse(msg.body.object_data)
-        inventory = await self.update_backpack([received_item])
-        item = steam.utils.find(lambda i: i.id == received_item.id, inventory)
-        self.dispatch("item_receive", item)
+        item = steam.utils.find(lambda i: i.asset_id == received_item.id, await self.update_backpack(received_item))
+        """
+        if item is None:
+            # this is garbage, steam only seems to have the item crafted when the account logs off from what I've tested
+            # more testing required here
+            for tries in range(5):
+                await asyncio.sleep(tries ** 2)
+                item = steam.utils.find(
+                    lambda i: i.asset_id == received_item.id, await self.update_backpack(received_item)
+                )
+        """
+        self.dispatch("item_receive", item or received_item)  # always going to be received_item from my tests :(
 
     @register(Language.SOUpdate)
     async def handle_so_update(self, msg: GCMsg[so_messages.CMsgSOSingleObject]) -> None:

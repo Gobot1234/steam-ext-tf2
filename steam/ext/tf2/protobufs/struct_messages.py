@@ -37,6 +37,9 @@ class MessageBase(metaclass=MessageMeta):
 
         return buffer.getvalue()
 
+    def parse(self: T, data: bytes) -> T:
+        ...
+
 
 class CraftRequest(MessageBase):
     recipe: int
@@ -44,8 +47,7 @@ class CraftRequest(MessageBase):
 
     def __bytes__(self) -> bytes:
         buffer = BytesBuffer()
-        buffer.write_int16(self.recipe)
-        buffer.write_int16(len(self.items))
+        buffer.write_struct("<hh", self.recipe, len(self.items))
         for item in self.items:
             buffer.write_uint64(item)
 
@@ -53,12 +55,15 @@ class CraftRequest(MessageBase):
 
 
 class CraftResponse(MessageBase):
-    id_list: list[int]
+    recipe_id: int
+    id_list: tuple[int, ...]
 
     def parse(self, data: bytes) -> CraftResponse:
-        buffer = BytesBuffer(data)  # I dont think
+        buffer = BytesBuffer(data)
+        self.recipe_id = buffer.read_int16()
+        _ = buffer.read_uint32()  # always 0 in mckay's experience
         id_count = buffer.read_int16()
-        self.id_list = [buffer.read_uint64() for _ in range(id_count)]
+        self.id_list = buffer.read_struct(f"<{'Q' * id_count}", 8 * id_count)
 
         return self
 

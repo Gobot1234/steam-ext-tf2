@@ -125,10 +125,12 @@ class Client(Client):
 
     async def close(self) -> None:
         try:
-            await self.ws.send_gc_message(GCMsgProto(Language.ClientGoodbye))
-            await self.change_presence(game=Game(id=0))  # disconnect from games
-            self._gc_disconnect_task.cancel()
-            self._gc_connect_task.cancel()
+            if self.ws:
+                await self.ws.send_gc_message(GCMsgProto(Language.ClientGoodbye))
+                await self.change_presence(game=Game(id=0))  # disconnect from games
+            if self.is_ready():
+                self._gc_disconnect_task.cancel()
+                self._gc_connect_task.cancel()
         finally:
             await super().close()
 
@@ -161,14 +163,14 @@ class Client(Client):
         # NOTE!!!!!!
         # these may be broken
 
-        async def on_crafting_complete(self, craft: tf2.CraftResponse) -> None:
+        async def on_crafting_complete(self, *items: tf2.BackPackItem) -> None:
             """|coro|
             Called after a crafting recipe is completed.
 
             Parameters
             ----------
-            craft: :class:`tf2.BluePrintResponse`
-                The completed crafting recipe.
+            *items: :class:`tf2.BackPackItem`
+                The items the craft request created.
             """
 
         async def on_backpack_update(self, backpack: tf2.BackPack) -> None:

@@ -42,8 +42,6 @@ class BackPackItem(Item):
     ----------
     id: :class:`int`
         An alias for :attr:`asset_id`.
-    position: :class:`int`
-        The item's position in the inventory.
     quality: :class:`ItemQuality`
         The item's quality.
     """
@@ -51,21 +49,18 @@ class BackPackItem(Item):
     # others not a clue please feel to PR them
 
     __slots__ = (
-        "position",
         "_state",
     ) + tuple(CsoEconItem.__annotations__)
 
-    position: int
     quality: Optional[ItemQuality]
 
     def __init__(self, item: Item, state: GCState):  # noqa
         for name, attr in inspect.getmembers(item, predicate=lambda attr: not _is_descriptor(attr)):
-            if name[0] == "_" and name[-1] == "_":
-                continue
-            try:
-                setattr(self, name, attr)
-            except (AttributeError, TypeError):
-                pass
+            if not (name.startswith("__") and name.endswith("__")):
+                try:
+                    setattr(self, name, attr)
+                except (AttributeError, TypeError):
+                    pass
         try:
             self.quality = ItemQuality.try_value(self.quality)
         except AttributeError:
@@ -81,6 +76,12 @@ class BackPackItem(Item):
         attrs = ("position",)
         resolved.extend(f"{attr}={getattr(self, attr, None)!r}" for attr in attrs)
         return f"<BackPackItem {' '.join(resolved)}>"
+
+    @property
+    def position(self) -> int:
+        """:class:`int`: The item's position in the inventory."""
+        is_new = (self.inventory >> 30) & 1
+        return 0 if is_new else self.inventory & 0xFFFF
 
     async def use(self) -> None:
         """|coro|
@@ -221,12 +222,11 @@ class BackPack(Inventory[BPI]):
 
     def __init__(self, inventory: Inventory):  # noqa
         for name, attr in inspect.getmembers(inventory, lambda attr: not _is_descriptor(attr)):
-            if name[0] == "_" and name[-1] == "_":
-                continue
-            try:
-                setattr(self, name, attr)
-            except (AttributeError, TypeError):
-                pass
+            if not (name.startswith("__") and name.endswith("__")):
+                try:
+                    setattr(self, name, attr)
+                except (AttributeError, TypeError):
+                    pass
         self.items = [BackPackItem(item, self._state) for item in inventory.items]
 
     async def set_positions(self, items_and_positions: list[tuple[BackPackItem, int]]) -> None:

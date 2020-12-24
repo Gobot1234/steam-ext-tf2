@@ -8,11 +8,14 @@ from setuptools import setup
 ROOT = pathlib.Path(__file__).parent
 
 
-with open(ROOT / "steam" / "ext" / "tf2" / "__init__.py") as f:
-    try:
-        VERSION = re.findall(r'^__version__\s*=\s*"([^"]*)"', f.read(), re.MULTILINE)[0]
-    except IndexError:
-        raise RuntimeError("Version is not set")
+try:
+    VERSION = re.findall(
+        r'^__version__\s*=\s*"([^"]*)"',
+        (ROOT / "steam" / "ext" / "tf2" / "__init__.py").read_text(),
+        re.MULTILINE,
+    )[0]
+except IndexError:
+    raise RuntimeError("Version is not set")
 
 if VERSION.endswith(("a", "b")) or "rc" in VERSION:
     # try to find out the commit hash if checked out from git, and append
@@ -30,12 +33,8 @@ if VERSION.endswith(("a", "b")) or "rc" in VERSION:
     except Exception:
         pass
 
-with open(ROOT / "README.md", encoding="utf-8") as f:
-    README = f.read()
-
-
-with open(ROOT / "requirements.txt") as f:
-    REQUIREMENTS = f.read().splitlines()
+README = (ROOT / "README.md").read_text(encoding="utf-8")
+REQUIREMENTS = (ROOT / "requirements.txt").read_text().splitlines()
 
 
 setup(
@@ -57,7 +56,7 @@ setup(
     download_url=f"https://github.com/Gobot1234/steam-ext-tf2/archive/{VERSION}.tar.gz",
     keywords="tf2 team-fortress steam.py steam steamio steam-api",
     classifiers=[
-        "Development Status :: 5 - Production/Stable",
+        "Development Status :: 2 - Alpha",
         "Framework :: AsyncIO",
         "License :: OSI Approved :: MIT License",
         "Intended Audience :: Developers",

@@ -2,15 +2,19 @@
 
 import struct
 from io import BytesIO
+from typing import Optional
 
 
 class BytesBuffer(BytesIO):
-    def read_struct(self, format: str, position: int = None) -> tuple:
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(buffer={self.getvalue()}, position={self.tell()})"
+
+    def read_struct(self, format: str, position: Optional[int] = None) -> tuple:
         buffer = self.read(position or struct.calcsize(format))
         return struct.unpack(format, buffer)
 
-    def write_struct(self, format: str, to_write: int) -> None:
-        self.write(struct.pack(format, to_write))
+    def write_struct(self, format: str, *to_write: int) -> None:
+        self.write(struct.pack(format, *to_write))
 
     def read_int16(self, position: int = 2) -> int:
         return self.read_struct("<h", position)[0]
