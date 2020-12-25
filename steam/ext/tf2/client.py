@@ -63,6 +63,7 @@ class Client(Client):
         super().__init__(loop, **options)
         self._connection = GCState(client=self, http=self.http, **options)
         self._gc_connect_task: Optional[asyncio.Task] = None
+        self._gc_disconnect_task: Optional[asyncio.Task] = None
 
     @property
     def schema(self) -> Optional[MultiDict]:
@@ -111,7 +112,8 @@ class Client(Client):
     async def _on_gc_connect(self) -> None:
         await self.wait_until_ready()
         self._connection._unpatched_inventory = self.user.inventory
-        await self.wait_for("gc_connect")
+        self._connection._backpack.set()
+        await self._connection._connected.wait()
         while True:  # this is ok-ish as gateway.KeepAliveHandler should catch any blocking and disconnects
             await self.ws.send_gc_message(GCMsgProto(Language.ClientHello))
             await asyncio.sleep(5)

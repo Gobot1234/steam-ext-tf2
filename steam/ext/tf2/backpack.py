@@ -48,9 +48,7 @@ class BackPackItem(Item):
 
     # others not a clue please feel to PR them
 
-    __slots__ = (
-        "_state",
-    ) + tuple(CsoEconItem.__annotations__)
+    __slots__ = ("_state",) + tuple(CsoEconItem.__annotations__)
 
     quality: Optional[ItemQuality]
 
@@ -197,7 +195,12 @@ class BackPackItem(Item):
     def slot(self) -> Optional[ItemSlot]:
         for tag in self.tags:  # Craft_Item and Tf_Gift fail this
             if tag.get("category") == "Type" and "internal_name" in tag:
-                return ItemSlot[pascal_case(tag["internal_name"], strict=False).replace("Pda", "PDA")]
+                try:
+                    return ItemSlot[
+                        pascal_case(tag["internal_name"], strict=False).replace("Pda", "PDA").replace("Tf_Gift", "Gift")
+                    ]
+                except KeyError:
+                    return tag["internal_name"]
 
     # TODO:
     # - festiveized

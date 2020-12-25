@@ -70,6 +70,7 @@ class ItemSlot(IntEnum):
     Taunt7    = 17
     Taunt8    = 18
     Misc      = 100  # not actually real but good for BackPackItem.slot
+    Gift      = 101  # same as above
 
 
 class WearLevel(Enum):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Any, TYPE_CHECKING, Callable, Coroutine, Optional
@@ -9,7 +10,7 @@ from typing import Any, TYPE_CHECKING, Callable, Coroutine, Optional
 from multidict import MultiDict
 
 import steam
-from steam import Game, Inventory
+from steam import Game, Inventory, TF2, utils
 from steam.protobufs import EMsg, GCMsg, GCMsgProto, MsgProto
 from steam.models import EventParser, register
 from steam.state import ConnectionState
@@ -38,6 +39,8 @@ class GCState(ConnectionState):
         "_unpatched_inventory",
         "_is_premium",
         "_first_so_cache_check",
+        "_connected",
+        "_backpack",
     )
 
     def __init__(self, client: Client, **kwargs: Any):
@@ -48,6 +51,8 @@ class GCState(ConnectionState):
         self._unpatched_inventory: Optional[Callable[[Game], Coroutine[None, None, Inventory]]] = None
         self._is_premium: Optional[bool] = None
         self._first_so_cache_check = True
+        self._connected = asyncio.Event()
+        self._backpack = asyncio.Event()
 
         language = kwargs.get("language")
         if language is not None:
@@ -59,16 +64,16 @@ class GCState(ConnectionState):
             return
 
         try:
-            language = Language(steam.utils.clear_proto_bit(msg.body.msgtype))
+            language = Language(utils.clear_proto_bit(msg.body.msgtype))
         except ValueError:
             return log.info(
-                f"Ignoring unknown msg type: {msg.body.msgtype} ({steam.utils.clear_proto_bit(msg.body.msgtype)})"
+                f"Ignoring unknown msg type: {msg.body.msgtype} ({utils.clear_proto_bit(msg.body.msgtype)})"
             )
 
         try:
             msg = (
                 GCMsgProto(language, msg.body.payload)
-                if steam.utils.is_proto(msg.body.msgtype)
+                if utils.is_proto(msg.body.msgtype)
                 else GCMsg(language, msg.body.payload)
             )
         except Exception as exc:
@@ -86,23 +91,29 @@ class GCState(ConnectionState):
             if log.isEnabledFor(logging.DEBUG):
                 log.debug(f"Ignoring event {msg!r}")
         else:
-            await steam.utils.maybe_coroutine(func, msg)
+            await utils.maybe_coroutine(func, msg)
 
-    @register(Language.ClientWelcome)  # TODO should these use asyncio.Events?
+    @register(Language.ClientWelcome)
     def parse_gc_client_connect(self, _) -> None:
-        self.dispatch("gc_connect")
+        if not self._connected.is_set():
+            self.dispatch("gc_connect")
+            self._connected.set()
 
     @register(Language.ServerWelcome)
     def parse_gc_server_connect(self, _) -> None:
-        self.dispatch("gc_connect")
+        if not self._connected.is_set():
+            self.dispatch("gc_connect")
+            self._connected.set()
 
     @register(Language.ClientGoodbye)
     def parse_client_goodbye(self, _) -> None:
         self.dispatch("gc_disconnect")
+        self._connected.clear()
 
     @register(Language.ServerGoodbye)
     def parse_server_goodbye(self, _) -> None:
         self.dispatch("gc_disconnect")
+        self._connected.clear()
 
     @register(Language.UpdateItemSchema)
     async def parse_schema(self, msg: GCMsgProto[cso_messages.CMsgUpdateItemSchema]) -> None:
@@ -137,7 +148,7 @@ class GCState(ConnectionState):
         # this is called after item_receive so no fetching is necessary
         self.dispatch(
             "crafting_complete",
-            *[steam.utils.find(lambda i: i.asset_id == item_id, self.backpack) for item_id in msg.body.id_list],
+            *[utils.find(lambda i: i.asset_id == item_id, self.backpack) for item_id in msg.body.id_list],
         )
 
     @register(Language.SOCacheSubscriptionCheck)
@@ -146,9 +157,9 @@ class GCState(ConnectionState):
         msg = GCMsgProto(Language.SOCacheSubscriptionRefresh, owner=self.client.user.id64)
         await self.ws.send_gc_message(msg)
 
-    def patch_user_inventory(self, new_inventory: steam.Inventory) -> None:
-        async def inventory(_, game: Game) -> steam.Inventory:
-            if game != steam.TF2:
+    def patch_user_inventory(self, new_inventory: Inventory) -> None:
+        async def inventory(_, game: Game) -> Inventory:
+            if game != TF2:
                 return await self._unpatched_inventory(game)
 
             return new_inventory
@@ -156,7 +167,8 @@ class GCState(ConnectionState):
         self.client.user.__class__.inventory = inventory
 
     async def update_backpack(self, *items: cso_messages.CsoEconItem) -> BackPack:
-        backpack = BackPack(await self._unpatched_inventory(steam.TF2))
+        await self._backpack.wait()
+        backpack = BackPack(await self._unpatched_inventory(TF2))
         for item in backpack:
             for backpack_item in items:
                 if item.asset_id == backpack_item.id:
@@ -188,18 +200,24 @@ class GCState(ConnectionState):
             return
 
         received_item = cso_messages.CsoEconItem().parse(msg.body.object_data)
-        item = steam.utils.find(lambda i: i.asset_id == received_item.id, await self.update_backpack(received_item))
-        """
+        item = utils.find(lambda i: i.asset_id == received_item.id, await self.update_backpack(received_item))
+
         if item is None:
-            # this is garbage, steam only seems to have the item crafted when the account logs off from what I've tested
-            # more testing required here
-            for tries in range(5):
-                await asyncio.sleep(tries ** 2)
-                item = steam.utils.find(
-                    lambda i: i.asset_id == received_item.id, await self.update_backpack(received_item)
-                )
-        """
-        self.dispatch("item_receive", item or received_item)  # always going to be received_item from my tests :(
+            await self.restart_tf2()  # steam doesn't add the item to your inventory until you restart tf2
+            return await self.parse_item_add(msg)
+
+        self.dispatch("item_receive", item)
+
+    async def restart_tf2(self) -> None:
+        self.client._gc_connect_task.cancel()
+        self.client._gc_disconnect_task.cancel()
+        await self.ws.send_gc_message(GCMsgProto(Language.ClientGoodbye))
+        await self.client.change_presence(game=Game(id=0))
+        self._connected.clear()
+        await self.client.change_presence(game=TF2)
+        self.client._gc_connect_task = self.loop.create_task(self.client._on_gc_connect())
+        self.client._gc_disconnect_task = self.loop.create_task(self.client._on_disconnect())
+        await self._connected.wait()
 
     @register(Language.SOUpdate)
     async def handle_so_update(self, msg: GCMsg[so_messages.CMsgSOSingleObject]) -> None:
@@ -231,15 +249,15 @@ class GCState(ConnectionState):
             log.debug(f"Unknown SO type {item.type_id} updated")
 
     @register(Language.SODestroy)
-    async def handle_item_remove(self, msg: GCMsg[so_messages.CMsgSOSingleObject]) -> None:
+    async def handle_item_remove(self, msg: GCMsgProto[so_messages.CMsgSOSingleObject]) -> None:
         if msg.body.type_id != 1 or not self.backpack:
             return
 
-        received_item = cso_messages.CsoEconItem().parse(msg.body.object_data)
+        deleted_item = cso_messages.CsoEconItem().parse(msg.body.object_data)
         for item in self.backpack:
-            if item.asset_id == received_item.id:
-                for attribute_name in received_item.__dataclass_fields__:
-                    setattr(item, attribute_name, getattr(received_item, attribute_name))
+            if item.asset_id == deleted_item.id:
+                for attribute_name in deleted_item.__dataclass_fields__:
+                    setattr(item, attribute_name, getattr(deleted_item, attribute_name))
                 self.backpack.items.remove(item)
                 self.dispatch("item_remove", item)
                 break
