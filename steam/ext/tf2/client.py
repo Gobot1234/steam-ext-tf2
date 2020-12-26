@@ -13,7 +13,7 @@ from typing_extensions import Final, Literal
 
 from steam import TF2, ClanInvite, Client, ClientUser, Comment, Game, Message, TradeOffer, User, UserInvite, Inventory
 from steam.ext import commands
-from steam.protobufs import GCMsg, GCMsgProto
+from steam.protobufs import GCMsg
 
 from ...gateway import Msgs
 from ..commands import Context
@@ -59,11 +59,10 @@ class Client(Client):
                 options["games"].append(game)
             except (TypeError, KeyError):
                 options["games"] = [game]
-        options["game"] = TF2
+        options["game"] = self.GAME
+        self._original_games: list[Game] = options.get("games")
         super().__init__(loop, **options)
         self._connection = GCState(client=self, http=self.http, **options)
-        self._gc_connect_task: Optional[asyncio.Task] = None
-        self._gc_disconnect_task: Optional[asyncio.Task] = None
 
     @property
     def schema(self) -> Optional[MultiDict]:
@@ -100,39 +99,29 @@ class Client(Client):
             https://github.com/DontAskM8/TF2-Crafting-Recipe/blob/master/craftRecipe.json for recipe details.
         """
         msg = GCMsg(Language.Craft, recipe=recipe, items=[item.id for item in items])
+        # TODO check response -1 is an error I think
         await self.ws.send_gc_message(msg)
 
     # boring subclass stuff
 
-    async def start(self, *args: Any, **kwargs: Any) -> None:
-        self._gc_connect_task = self.loop.create_task(self._on_gc_connect())
-        self._gc_disconnect_task = self.loop.create_task(self._on_disconnect())
-        await super().start(*args, **kwargs)
+    def _handle_ready(self) -> None:
+        self._connection._unpatched_inventory = self.user.inventory
+        super()._handle_ready()
 
     async def _on_gc_connect(self) -> None:
-        await self.wait_until_ready()
-        self._connection._unpatched_inventory = self.user.inventory
-        self._connection._backpack.set()
+        """
         await self._connection._connected.wait()
         while True:  # this is ok-ish as gateway.KeepAliveHandler should catch any blocking and disconnects
             await self.ws.send_gc_message(GCMsgProto(Language.ClientHello))
             await asyncio.sleep(5)
-
-    async def _on_disconnect(self) -> None:
-        while True:
-            await self.wait_for("disconnect")
-            self._gc_connect_task.cancel()
-            await self.wait_for("connect")
-            self._gc_connect_task = self.loop.create_task(self._on_gc_connect())
+        """
+        # this breaks things not sure why can't be bothered finding out stuff seems to work without pinging.
 
     async def close(self) -> None:
         try:
             if self.ws:
-                await self.ws.send_gc_message(GCMsgProto(Language.ClientGoodbye))
                 await self.change_presence(game=Game(id=0))  # disconnect from games
-            if self.is_ready():
-                self._gc_disconnect_task.cancel()
-                self._gc_connect_task.cancel()
+                # TODO this should be default behaviour on base class
         finally:
             await super().close()
 

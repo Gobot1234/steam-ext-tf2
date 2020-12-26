@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, TypeVar
+from dataclasses import dataclass
+from typing import Any, List, TypeVar
 
+import betterproto
+
+from .base_gcmessages import CsoEconItem
 from ..utils import BytesBuffer
 
 T = TypeVar("T", bound="MessageBase")
@@ -101,3 +105,18 @@ class DeliverGiftRequest(MessageBase):
 class OpenCrateRequest(MessageBase):
     key_id: int
     crate_id: int
+
+
+# not strictly a struct message but its one I have to do
+
+@dataclass(eq=False, repr=False)
+class UpdateMultipleItems(betterproto.Message):
+    owner: int = betterproto.fixed64_field(1)
+    objects: List["InnerItem"] = betterproto.message_field(2)
+    version: float = betterproto.fixed64_field(3)
+
+
+@dataclass(eq=False, repr=False)
+class InnerItem(betterproto.Message):
+    type_id: int = betterproto.uint32_field(1)
+    inner: "CsoEconItem" = betterproto.message_field(2)

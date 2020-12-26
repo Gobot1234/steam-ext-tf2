@@ -15,9 +15,10 @@ from steam.protobufs import EMsg, GCMsg, GCMsgProto, MsgProto
 from steam.models import EventParser, register
 from steam.state import ConnectionState
 
-from .backpack import BackPack
+from .backpack import BackPack, BackPackItem
 from .enums import Language
 from .protobufs import base_gcmessages as cso_messages, gcsdk_gcmessages as so_messages, struct_messages
+from .protobufs.struct_messages import UpdateMultipleItems
 
 if TYPE_CHECKING:
     from steam.protobufs.steammessages_clientserver_2 import CMsgGcClient
@@ -38,9 +39,7 @@ class GCState(ConnectionState):
         "backpack_slots",
         "_unpatched_inventory",
         "_is_premium",
-        "_first_so_cache_check",
         "_connected",
-        "_backpack",
     )
 
     def __init__(self, client: Client, **kwargs: Any):
@@ -50,9 +49,7 @@ class GCState(ConnectionState):
         self.backpack_slots: Optional[int] = None
         self._unpatched_inventory: Optional[Callable[[Game], Coroutine[None, None, Inventory]]] = None
         self._is_premium: Optional[bool] = None
-        self._first_so_cache_check = True
         self._connected = asyncio.Event()
-        self._backpack = asyncio.Event()
 
         language = kwargs.get("language")
         if language is not None:
@@ -85,6 +82,8 @@ class GCState(ConnectionState):
             if log.isEnabledFor(logging.DEBUG):
                 log.debug(f"Socket has received GC message {msg!r} from the websocket.")
 
+        # self.dispatch("gc_message_receive", msg)  # TODO feel like this could be useful for hooks, same in gateway
+
         try:
             func = self.gc_parsers[language]
         except KeyError:
@@ -99,21 +98,12 @@ class GCState(ConnectionState):
             self.dispatch("gc_connect")
             self._connected.set()
 
-    @register(Language.ServerWelcome)
-    def parse_gc_server_connect(self, _) -> None:
-        if not self._connected.is_set():
-            self.dispatch("gc_connect")
-            self._connected.set()
-
     @register(Language.ClientGoodbye)
-    def parse_client_goodbye(self, _) -> None:
+    def parse_client_goodbye(self, _=None) -> None:
         self.dispatch("gc_disconnect")
         self._connected.clear()
 
-    @register(Language.ServerGoodbye)
-    def parse_server_goodbye(self, _) -> None:
-        self.dispatch("gc_disconnect")
-        self._connected.clear()
+    # TODO maybe stuff for servers?
 
     @register(Language.UpdateItemSchema)
     async def parse_schema(self, msg: GCMsgProto[cso_messages.CMsgUpdateItemSchema]) -> None:
@@ -167,7 +157,7 @@ class GCState(ConnectionState):
         self.client.user.__class__.inventory = inventory
 
     async def update_backpack(self, *items: cso_messages.CsoEconItem) -> BackPack:
-        await self._backpack.wait()
+        await self.client.wait_until_ready()
         backpack = BackPack(await self._unpatched_inventory(TF2))
         for item in backpack:
             for backpack_item in items:
@@ -185,14 +175,15 @@ class GCState(ConnectionState):
         for cache in msg.body.objects:
             if cache.type_id == 1:  # backpack
                 items = [cso_messages.CsoEconItem().parse(item_data) for item_data in cache.object_data]
-                await self.update_backpack(*items)
+                for item in await self.update_backpack(*items):
+                    is_new = (item.inventory >> 30) & 1
+                    item.position = 0 if is_new else item.inventory & 0xFFFF
             elif cache.type_id == 7:  # account metadata
                 proto = cso_messages.CsoEconGameAccountClient().parse(cache.object_data[0])
                 self._is_premium = not proto.trial_account
                 self.backpack_slots = (50 if proto.trial_account else 300) + proto.additional_backpack_slots
-        if self._first_so_cache_check:
+        if self._connected.is_set():
             self.dispatch("gc_ready")
-            self._first_so_cache_check = False
 
     @register(Language.SOCreate)
     async def parse_item_add(self, msg: GCMsg[so_messages.CMsgSOSingleObject]) -> None:
@@ -203,28 +194,30 @@ class GCState(ConnectionState):
         item = utils.find(lambda i: i.asset_id == received_item.id, await self.update_backpack(received_item))
 
         if item is None:
-            await self.restart_tf2()  # steam doesn't add the item to your inventory until you restart tf2
+            await self.restart_tf2()  # steam doesn't add the item to your api inventory until you restart tf2
             return await self.parse_item_add(msg)
 
+        item.position = item.inventory & 0x0000FFFF
         self.dispatch("item_receive", item)
 
     async def restart_tf2(self) -> None:
-        self.client._gc_connect_task.cancel()
-        self.client._gc_disconnect_task.cancel()
-        await self.ws.send_gc_message(GCMsgProto(Language.ClientGoodbye))
         await self.client.change_presence(game=Game(id=0))
-        self._connected.clear()
-        await self.client.change_presence(game=TF2)
-        self.client._gc_connect_task = self.loop.create_task(self.client._on_gc_connect())
-        self.client._gc_disconnect_task = self.loop.create_task(self.client._on_disconnect())
-        await self._connected.wait()
+        self.parse_client_goodbye()
+        await self.client.change_presence(game=TF2, games=self.client._original_games)
 
     @register(Language.SOUpdate)
-    async def handle_so_update(self, msg: GCMsg[so_messages.CMsgSOSingleObject]) -> None:
+    async def handle_so_update(self, msg: GCMsgProto[so_messages.CMsgSOSingleObject]) -> None:
         await self._handle_so_update(msg.body)
 
     @register(Language.SOUpdateMultiple)
-    async def handle_multiple_so_update(self, msg: GCMsg[so_messages.CMsgSOMultipleObjects]) -> None:
+    async def handle_multiple_so_update(self, msg: GCMsgProto[so_messages.CMsgSOMultipleObjects]) -> None:
+        try:
+            type_id = msg.body.objects[0].type_id
+        except IndexError:
+            pass  # would be weird
+        else:
+            if type_id == 1:
+                msg.body = UpdateMultipleItems().parse(msg.payload)  # discard the message cause my word it's broke
         for item in msg.body.objects:
             await self._handle_so_update(item)
 
@@ -232,11 +225,14 @@ class GCState(ConnectionState):
         if item.type_id == 1:
             if not self.backpack:
                 return
+            received_item: cso_messages.CsoEconItem = item.inner
 
-            received_item = cso_messages.CsoEconItem().parse(item.object_data)
-            old_item = steam.utils.find(lambda i: i.id == received_item.id, self.backpack)
-            await self.update_backpack([received_item])
-            new_item = steam.utils.find(lambda i: i.id == received_item.id, self.backpack)
+            def check(item: BackPackItem) -> bool:
+                return item.asset_id == int(received_item.id)
+
+            old_item = utils.find(check, self.backpack)
+            new_item = utils.find(check, await self.update_backpack(received_item))
+            new_item.position = item.inventory & 0x0000FFFF
             self.dispatch("item_update", old_item, new_item)
         elif item.type_id == 7:
             proto = cso_messages.CsoEconGameAccountClient().parse(item.object_data)
@@ -245,8 +241,8 @@ class GCState(ConnectionState):
                 self._is_premium = not proto.trial_account
                 self.backpack_slots = backpack_slots
                 self.dispatch("account_update")
-        else:  # updated asset ids go here TODO
-            log.debug(f"Unknown SO type {item.type_id} updated")
+        else:
+            log.debug(f"Unknown item {item!r} updated")
 
     @register(Language.SODestroy)
     async def handle_item_remove(self, msg: GCMsgProto[so_messages.CMsgSOSingleObject]) -> None:
@@ -256,7 +252,7 @@ class GCState(ConnectionState):
         deleted_item = cso_messages.CsoEconItem().parse(msg.body.object_data)
         for item in self.backpack:
             if item.asset_id == deleted_item.id:
-                for attribute_name in deleted_item.__dataclass_fields__:
+                for attribute_name in deleted_item.__annotations__:
                     setattr(item, attribute_name, getattr(deleted_item, attribute_name))
                 self.backpack.items.remove(item)
                 self.dispatch("item_remove", item)

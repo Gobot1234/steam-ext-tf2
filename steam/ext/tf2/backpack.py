@@ -48,8 +48,12 @@ class BackPackItem(Item):
 
     # others not a clue please feel to PR them
 
-    __slots__ = ("_state",) + tuple(CsoEconItem.__annotations__)
+    __slots__ = (
+        "position",
+        "_state",
+    ) + tuple(CsoEconItem.__annotations__)
 
+    position: int
     quality: Optional[ItemQuality]
 
     def __init__(self, item: Item, state: GCState):  # noqa
@@ -74,12 +78,6 @@ class BackPackItem(Item):
         attrs = ("position",)
         resolved.extend(f"{attr}={getattr(self, attr, None)!r}" for attr in attrs)
         return f"<BackPackItem {' '.join(resolved)}>"
-
-    @property
-    def position(self) -> int:
-        """:class:`int`: The item's position in the inventory."""
-        is_new = (self.inventory >> 30) & 1
-        return 0 if is_new else self.inventory & 0xFFFF
 
     async def use(self) -> None:
         """|coro|
