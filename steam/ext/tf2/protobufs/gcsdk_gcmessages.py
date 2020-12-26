@@ -51,7 +51,7 @@ class CMsgSOMultipleObjects(betterproto.Message):
 @dataclass(eq=False, repr=False)
 class CMsgSOMultipleObjectsSingleObject(betterproto.Message):
     type_id: int = betterproto.int32_field(1)
-    object_data: int = betterproto.int32_field(2)  # this is normally an int???
+    object_data: bytes = betterproto.bytes_field(2)
 
 
 @dataclass(eq=False, repr=False)

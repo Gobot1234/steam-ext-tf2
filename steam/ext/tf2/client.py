@@ -66,16 +66,18 @@ class Client(Client):
 
     @property
     def schema(self) -> Optional[MultiDict]:
-        """:class:`multidict.MultiDict`: TF2's item schema."""
+        """Optional[:class:`multidict.MultiDict`]: TF2's item schema."""
         return self._connection.schema
 
     @property
     def backpack_slots(self) -> int:
-        """:class:`int`: The client's number of backpack slots"""
+        """Optional[:class:`int`]: The client's number of backpack slots. ``None`` if the user isn't ready."""
         return self._connection.backpack_slots
 
-    def is_premium(self) -> bool:
-        """:class:`bool`: Whether or not the client's account has TF2 premium"""
+    def is_premium(self) -> Optional[bool]:
+        """
+        Optional[:class:`bool`]: Whether or not the client's account has TF2 premium. ``None`` if the user isn't ready.
+        """
         return self._connection._is_premium
 
     def set_language(self, file: Union[Path, str]) -> None:
@@ -99,7 +101,7 @@ class Client(Client):
             https://github.com/DontAskM8/TF2-Crafting-Recipe/blob/master/craftRecipe.json for recipe details.
         """
         msg = GCMsg(Language.Craft, recipe=recipe, items=[item.id for item in items])
-        # TODO check response -1 is an error I think
+        # TODO check response craft_recipe -1 is an error I think
         await self.ws.send_gc_message(msg)
 
     # boring subclass stuff
@@ -127,20 +129,35 @@ class Client(Client):
 
     if TYPE_CHECKING:
 
-        async def on_gc_connect(self, version: int) -> None:
+        async def on_gc_connect(self) -> None:
             """|coro|
             Called after the client receives the welcome message from the GC.
+
+            Warning
+            -------
+            This is called every time we craft an item and disconnect so same warnings apply to
+            :meth:`steam.Client.on_connect`
             """
 
         async def on_gc_disconnect(self) -> None:
             """|coro|
             Called after the client receives the goodbye message from the GC.
+
+            Warning
+            -------
+            This is called every time we craft an item and disconnect so same warnings apply to
+            :meth:`steam.Client.on_connect`
             """
 
         async def on_gc_ready(self) -> None:
             """|coro|
             Called after the client connects to the GC and has the :attr:`schema`, :meth:`Client.user.inventory` and set
             up and account info (:meth:`is_premium` and :attr:`backpack_slots`).
+
+            Warning
+            -------
+            This is called every time we craft an item and disconnect so same warnings apply to
+            :meth:`steam.Client.on_connect`
             """
 
         async def on_account_update(self) -> None:
@@ -151,9 +168,6 @@ class Client(Client):
                 - :attr:`backpack_slots`
             """
 
-        # NOTE!!!!!!
-        # these may be broken
-
         async def on_crafting_complete(self, *items: tf2.BackPackItem) -> None:
             """|coro|
             Called after a crafting recipe is completed.
@@ -162,21 +176,6 @@ class Client(Client):
             ----------
             *items: :class:`tf2.BackPackItem`
                 The items the craft request created.
-            """
-
-        async def on_backpack_update(self, backpack: tf2.BackPack) -> None:
-            """|coro|
-            Called when the client's backpack is updated.
-
-            Note
-            ----
-            This can be accessed at any time by calling :meth:`steam.ClientUser.backpack` with :attr:`steam.TF2` as
-            the game.
-
-            Parameters
-            ----------
-            backpack: :class:`tf2.BackPack`
-                The client's backpack.
             """
 
         async def on_item_receive(self, item: tf2.BackPackItem) -> None:
@@ -191,7 +190,7 @@ class Client(Client):
 
         async def on_item_remove(self, item: tf2.BackPackItem) -> None:
             """|coro|
-            Called when the client has an item removed from its inventory.
+            Called when the client has an item removed from its backpack.
 
             Parameters
             ----------
@@ -201,7 +200,7 @@ class Client(Client):
 
         async def on_item_update(self, before: tf2.BackPackItem, after: tf2.BackPackItem) -> None:
             """|coro|
-            Called when the client has an item in its inventory updated.
+            Called when the client has an item in its backpack updated.
 
             Parameters
             ----------
@@ -361,19 +360,9 @@ class Client(Client):
             self,
             event: Literal["crafting_complete"],
             *,
-            check: Optional[Callable[[CraftResponse], bool]] = ...,
+            check: Optional[Callable[[tuple[BackPackItem, ...]], bool]] = ...,
             timeout: Optional[float] = ...,
-        ) -> CraftResponse:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["backpack_update"],
-            *,
-            check: Optional[Callable[[BackPack], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> BackPack:
+        ) -> tuple[BackPackItem, ...]:
             ...
 
         @overload

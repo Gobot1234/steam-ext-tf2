@@ -9,7 +9,6 @@ from typing import Any, TYPE_CHECKING, Callable, Coroutine, Optional
 
 from multidict import MultiDict
 
-import steam
 from steam import Game, Inventory, TF2, utils
 from steam.protobufs import EMsg, GCMsg, GCMsgProto, MsgProto
 from steam.models import EventParser, register

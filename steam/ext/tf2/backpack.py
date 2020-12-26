@@ -38,12 +38,33 @@ BPI = TypeVar("BPI", bound="BackPackItem")
 class BackPackItem(Item):
     """A class to represent an item from the client's backpack.
 
+    Note
+    ----
+    This is meant to be user instantiatable but only to use the following methods:
+
+        - :meth:`is_australium`
+        - :meth:`is_craftable`
+        - :meth:`is_unusual`
+        - :attr:`wear`
+        - :attr:`equipable_by`
+        - :attr:`slot`
+
     Attributes
     ----------
     id: :class:`int`
         An alias for :attr:`asset_id`.
     quality: :class:`ItemQuality`
         The item's quality.
+    position: :class:`int`
+        The item's position in the backpack.
+    account_id: :class:`int`
+        Same as the :attr:`steam.SteamID.id` of the :attr:`steam.Client.user`.
+    inventory: :class:`int`
+        The attribute the :attr:`position` is calculated from.
+    def_index: :class:`int`
+        The item's def index. This is used to form the item's SKU.
+    level: :class:`int`
+        The item's level.
     """
 
     # others not a clue please feel to PR them
@@ -56,7 +77,7 @@ class BackPackItem(Item):
     position: int
     quality: Optional[ItemQuality]
 
-    def __init__(self, item: Item, state: GCState):  # noqa
+    def __init__(self, item: Item, state: Optional[GCState] = None):  # noqa
         for name, attr in inspect.getmembers(item, predicate=lambda attr: not _is_descriptor(attr)):
             if not (name.startswith("__") and name.endswith("__")):
                 try:
@@ -135,6 +156,8 @@ class BackPackItem(Item):
         slot: :class:`ItemSlot`
             The item slot to equip the item to.
         """
+        if slot >= 100:
+            raise ValueError("cannot use enums that aren't real item slots")
         msg = GCMsgProto(Language.AdjustItemEquippedState, item_id=self.id, new_class=mercenary, new_slot=slot)
         await self._state.ws.send_gc_message(msg)
 
