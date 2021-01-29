@@ -62,7 +62,7 @@ class Client(Client):
         options["game"] = self.GAME
         self._original_games: list[Game] = options.get("games")
         super().__init__(loop, **options)
-        self._connection = GCState(client=self, http=self.http, **options)
+        self._connection = GCState(client=self, **options)
 
     @property
     def schema(self) -> Optional[MultiDict]:
@@ -118,14 +118,6 @@ class Client(Client):
             await asyncio.sleep(5)
         """
         # this breaks things not sure why can't be bothered finding out stuff seems to work without pinging.
-
-    async def close(self) -> None:
-        try:
-            if self.ws:
-                await self.change_presence(game=Game(id=0))  # disconnect from games
-                # TODO this should be default behaviour on base class
-        finally:
-            await super().close()
 
     if TYPE_CHECKING:
 

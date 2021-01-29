@@ -263,7 +263,6 @@ class BackPack(Inventory[BPI]):
             A list of (item, position) pairs to set the positions for.
         """
         # TODO is this 0 indexed?
-        # Warning this crashes the bot atm
         msg = GCMsgProto(
             Language.SetItemPositions,
             item_positions=[{"item_id": item.id, "position": position} for item, position in items_and_positions],

@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 
 
 class GCState(ConnectionState):
-    gc_parsers: dict[Language, EventParser] = {}
+    gc_parsers: dict[Language, EventParser[Language]] = {}
     client: Client
 
     __slots__ = (
@@ -81,7 +81,7 @@ class GCState(ConnectionState):
             if log.isEnabledFor(logging.DEBUG):
                 log.debug(f"Socket has received GC message {msg!r} from the websocket.")
 
-        # self.dispatch("gc_message_receive", msg)  # TODO feel like this could be useful for hooks, same in gateway
+        self.dispatch("gc_message_receive", msg)
 
         try:
             func = self.gc_parsers[language]
@@ -137,7 +137,7 @@ class GCState(ConnectionState):
         # this is called after item_receive so no fetching is necessary
         self.dispatch(
             "crafting_complete",
-            *[utils.find(lambda i: i.asset_id == item_id, self.backpack) for item_id in msg.body.id_list],
+            *utils.find(lambda i: i.asset_id == item_id, self.backpack) for item_id in msg.body.id_list,
         )
 
     @register(Language.SOCacheSubscriptionCheck)

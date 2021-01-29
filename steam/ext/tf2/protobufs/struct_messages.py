@@ -8,7 +8,7 @@ from typing import Any, List, TypeVar
 import betterproto
 
 from .base_gcmessages import CsoEconItem
-from ..utils import BytesBuffer
+from steam.utils import BytesBuffer
 
 T = TypeVar("T", bound="MessageBase")
 
