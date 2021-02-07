@@ -36,7 +36,6 @@ async def on_trade_accept(trade: steam.TradeOffer) -> None:
         if len(scrap_triplet) != 3:
             break
         await bot.craft(scrap_triplet)
-        await bot.wait_for("crafting_complete")
 
     backpack = await bot.user.inventory(steam.TF2)
     reclaimed = backpack.filter_items("Reclaimed Metal")
@@ -44,7 +43,6 @@ async def on_trade_accept(trade: steam.TradeOffer) -> None:
         if len(reclaimed_triplet) != 3:
             break
         await bot.craft(reclaimed_triplet)
-        await bot.wait_for("crafting_complete")
         refined_crafted += 1
 
     print(f"Crafted {refined_crafted} Refined Metal")

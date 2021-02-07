@@ -5,23 +5,23 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import Any, TYPE_CHECKING, Callable, Coroutine, Optional
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Optional
 
 from multidict import MultiDict
 
-from steam import Game, Inventory, TF2, utils
-from steam.protobufs import EMsg, GCMsg, GCMsgProto, MsgProto
-from steam.models import EventParser, register
-from steam.state import ConnectionState
-
+from ... import utils
+from ...game import TF2, Game
+from ...models import EventParser, register
+from ...protobufs import EMsg, GCMsg, GCMsgProto, MsgProto
+from ...state import ConnectionState
+from ...trade import Inventory
 from .backpack import BackPack, BackPackItem
 from .enums import Language
 from .protobufs import base_gcmessages as cso_messages, gcsdk_gcmessages as so_messages, struct_messages
 from .protobufs.struct_messages import UpdateMultipleItems
 
 if TYPE_CHECKING:
-    from steam.protobufs.steammessages_clientserver_2 import CMsgGcClient
-
+    from ...protobufs.steammessages_clientserver_2 import CMsgGcClient
     from .client import Client
 
 log = logging.getLogger(__name__)
@@ -49,6 +49,7 @@ class GCState(ConnectionState):
         self._unpatched_inventory: Optional[Callable[[Game], Coroutine[None, None, Inventory]]] = None
         self._is_premium: Optional[bool] = None
         self._connected = asyncio.Event()
+        self._gc_ready = asyncio.Event()
 
         language = kwargs.get("language")
         if language is not None:
@@ -112,7 +113,9 @@ class GCState(ConnectionState):
         except Exception as exc:
             return log.error("Failed to get item schema", exc_info=exc)
 
-        self.schema = self.client.VDF_DECODER(await resp.text())["items_game"]
+        from . import VDF_DECODER  # circular import
+
+        self.schema = VDF_DECODER(await resp.text())["items_game"]
         log.info("Loaded schema")
 
     @register(Language.SystemMessage)
@@ -135,10 +138,11 @@ class GCState(ConnectionState):
     @register(Language.CraftResponse)
     def parse_crafting_response(self, msg: GCMsg[struct_messages.CraftResponse]) -> None:
         # this is called after item_receive so no fetching is necessary
-        self.dispatch(
-            "crafting_complete",
-            *utils.find(lambda i: i.asset_id == item_id, self.backpack) for item_id in msg.body.id_list,
-        )
+        if msg.body.id_list:  # only empty if crafting failed
+            self.dispatch(
+                "crafting_complete",
+                *(utils.find(lambda i: i.asset_id == item_id, self.backpack) for item_id in msg.body.id_list),
+            )
 
     @register(Language.SOCacheSubscriptionCheck)
     async def parse_cache_check(self, _=None) -> None:
@@ -182,6 +186,7 @@ class GCState(ConnectionState):
                 self._is_premium = not proto.trial_account
                 self.backpack_slots = (50 if proto.trial_account else 300) + proto.additional_backpack_slots
         if self._connected.is_set():
+            self._gc_ready.set()
             self.dispatch("gc_ready")
 
     @register(Language.SOCreate)

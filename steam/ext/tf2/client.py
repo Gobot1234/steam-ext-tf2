@@ -5,18 +5,18 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 from pathlib import Path
-from typing import Any, TYPE_CHECKING, Callable, Optional, Union, overload
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional, Union, overload
 
 import vdf
 from multidict import MultiDict
 from typing_extensions import Final, Literal
 
-from steam import TF2, ClanInvite, Client, ClientUser, Comment, Game, Message, TradeOffer, User, UserInvite, Inventory
-from steam.ext import commands
-from steam.protobufs import GCMsg
-
+from ...client import Client
+from ...ext import commands
+from ...game import TF2, Game
 from ...gateway import Msgs
-from ..commands import Context
+from ...protobufs import GCMsg
+from ...user import ClientUser, User
 from .enums import Language
 from .protobufs.struct_messages import CraftResponse
 from .state import GCState
@@ -24,6 +24,11 @@ from .state import GCState
 if TYPE_CHECKING:
     from steam.ext import tf2
 
+    from ...comment import Comment
+    from ...invite import ClanInvite, UserInvite
+    from ...message import Message
+    from ...trade import Inventory, TradeOffer
+    from ..commands import Context
     from .backpack import BackPack, BackPackItem
 
 __all__ = (
@@ -41,13 +46,8 @@ class TF2ClientUser(ClientUser):
     async def inventory(self, game: Game) -> Inventory:
         ...
 
-    async def inventory(self, game: Game) -> Union[Inventory, BackPack]:
-        return await super().inventory(game)
-
 
 class Client(Client):
-    VDF_DECODER: Callable[[str], MultiDict] = vdf.loads  #: The default VDF decoder to use
-    VDF_ENCODER: Callable[[str], MultiDict] = vdf.dumps  #: The default VDF encoder to use
     GAME: Final[Game] = TF2
 
     user: Optional[TF2ClientUser]
@@ -60,7 +60,9 @@ class Client(Client):
             except (TypeError, KeyError):
                 options["games"] = [game]
         options["game"] = self.GAME
-        self._original_games: list[Game] = options.get("games")
+        self._original_games: Optional[list[Game]] = options.get("games")
+        self._crafting_lock = asyncio.Lock()
+
         super().__init__(loop, **options)
         self._connection = GCState(client=self, **options)
 
@@ -85,24 +87,63 @@ class Client(Client):
 
         This isn't necessary in most situations.
         """
-        file = Path(file).resolve()
-        self._connection.language = self.VDF_DECODER(file.read_text())
+        from . import VDF_DECODER
 
-    async def craft(self, items: list[BackPackItem], recipe: int = -2) -> None:
+        file = Path(file).resolve()
+        self._connection.language = VDF_DECODER(file.read_text())
+
+    async def craft(self, items: Iterable[BackPackItem], recipe: int = -2) -> Optional[list[BackPackItem]]:
         """|coro|
         Craft a set of items together with an optional recipe.
+
+        Note
+        ----
+        This internally acquires a lock and is only able to craft one set of items at a time as we have to wait for a
+        response to get the items crafted.
 
         Parameters
         ----------
         items: list[:class:`BackPackItem`]
             The items to craft.
         recipe: :class:`int`
-            The recipe to craft them with default is -2 (wildcard). See
-            https://github.com/DontAskM8/TF2-Crafting-Recipe/blob/master/craftRecipe.json for recipe details.
+            The recipe to craft them with default is -2 (wildcard). Setting for metal crafts isn't important. See
+            https://github.com/DontAskM8/TF2-Crafting-Recipe/blob/master/craftRecipe.json for other recipe details.
+
+        Returns
+        -------
+        Optional[list[:class:`BackPackItem`]]
+            The crafted items, ``None`` if crafting failed.
         """
-        msg = GCMsg(Language.Craft, recipe=recipe, items=[item.id for item in items])
-        # TODO check response craft_recipe -1 is an error I think
-        await self.ws.send_gc_message(msg)
+        async with self._crafting_lock:
+            msg = GCMsg(Language.Craft, recipe=recipe, items=[item.id for item in items])
+            gc_message_task = asyncio.create_task(
+                self.wait_for("gc_message_receive", check=lambda c: isinstance(c.body, CraftResponse))
+            )
+            old_listeners = self._listeners.get("crafting_complete", []).copy()
+            items_task = asyncio.create_task(self.wait_for("crafting_complete"))
+
+            created_listener = [t for t in self._listeners.get("crafting_complete", []) if t not in old_listeners]
+            while not created_listener:
+                created_listener = [t for t in self._listeners.get("crafting_complete", []) if t not in old_listeners]
+
+                await asyncio.sleep(0)  # yield back to event loop after each iteration
+
+            created_listener = created_listener[0]
+
+            await self.ws.send_gc_message(msg)
+
+            resp = await gc_message_task
+            if resp.body.recipe_id == -1:
+                # need to make sure to cleanup *everything*
+                created_listener[0].cancel()  # cancel the future
+                self._listeners["crafting_complete"].remove(created_listener)  # remove the listener
+                items_task.cancel()  # cancel the task
+                return None
+
+            return await items_task
+
+    async def wait_for_gc_ready(self):
+        await self._connection._gc_ready.wait()
 
     # boring subclass stuff
 

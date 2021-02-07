@@ -369,7 +369,7 @@ class Language(IntEnum):
     GameMatchSignOut                            = 6204
     CreateOrUpdateParty                         = 6233
     AbandonCurrentGame                          = 6235
-    EMsgForceSOCacheResend                      = 6237
+    ForceSOCacheResend                          = 6237
     RequestChatChannelList                      = 6260
     RequestChatChannelListResponse              = 6261
     ReadyUp                                     = 6270
