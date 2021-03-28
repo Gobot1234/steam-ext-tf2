@@ -217,13 +217,12 @@ class GCState(ConnectionState):
         if item.type_id == 1:
             if not self.backpack:
                 return
-            received_item: cso.CsoEconItem = item.inner
 
             def check(item: BackPackItem) -> bool:
-                return item.asset_id == int(received_item.id)
+                return item.asset_id == int(item.id)
 
             old_item = utils.find(check, self.backpack)
-            new_item = utils.find(check, await self.update_backpack(received_item))
+            new_item = utils.find(check, await self.update_backpack(item))
             new_item.position = item.inventory & 0x0000ffff
             self.dispatch("item_update", old_item, new_item)
         elif item.type_id == 7:
