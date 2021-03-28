@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional, Union, overload
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional, overload
 
-import vdf
 from multidict import MultiDict
 from typing_extensions import Final, Literal
 
 from ...client import Client
 from ...ext import commands
 from ...game import TF2, Game
-from ...gateway import Msgs
+from ...gateway import Msgs, return_true
 from ...protobufs import GCMsg
 from ...user import ClientUser, User
 from .enums import Language
@@ -72,7 +72,7 @@ class Client(Client):
         return self._connection.schema
 
     @property
-    def backpack_slots(self) -> int:
+    def backpack_slots(self) -> Optional[int]:
         """Optional[:class:`int`]: The client's number of backpack slots. ``None`` if the user isn't ready."""
         return self._connection.backpack_slots
 
@@ -82,7 +82,7 @@ class Client(Client):
         """
         return self._connection._is_premium
 
-    def set_language(self, file: Union[Path, str]) -> None:
+    def set_language(self, file: os.PathLike[str]) -> None:
         """Set the localization files for your bot.
 
         This isn't necessary in most situations.
@@ -106,7 +106,7 @@ class Client(Client):
         items: list[:class:`BackPackItem`]
             The items to craft.
         recipe: :class:`int`
-            The recipe to craft them with default is -2 (wildcard). Setting for metal crafts isn't important. See
+            The recipe to craft them with default is -2 (wildcard). Setting for metal crafts isn't required. See
             https://github.com/DontAskM8/TF2-Crafting-Recipe/blob/master/craftRecipe.json for other recipe details.
 
         Returns
@@ -114,33 +114,25 @@ class Client(Client):
         Optional[list[:class:`BackPackItem`]]
             The crafted items, ``None`` if crafting failed.
         """
+
         async with self._crafting_lock:
-            msg = GCMsg(Language.Craft, recipe=recipe, items=[item.id for item in items])
-            gc_message_task = asyncio.create_task(
-                self.wait_for("gc_message_receive", check=lambda c: isinstance(c.body, CraftResponse))
+            future = self.loop.create_future()
+            listeners = self._listeners.setdefault("crafting_complete", [])
+            listeners.append((future, return_true))
+
+            await self.ws.send_gc_message(
+                GCMsg(Language.Craft, recipe=recipe, items=[item.id for item in items])
             )
-            old_listeners = self._listeners.get("crafting_complete", []).copy()
-            items_task = asyncio.create_task(self.wait_for("crafting_complete"))
+            # would like to be able to just check job_source_id, but it doesn't appear to get set (would also allow
+            # this to be used without the lock
+            resp = await self.wait_for("gc_message_receive", check=lambda c: isinstance(c.body, CraftResponse))  # noqa
 
-            created_listener = [t for t in self._listeners.get("crafting_complete", []) if t not in old_listeners]
-            while not created_listener:
-                created_listener = [t for t in self._listeners.get("crafting_complete", []) if t not in old_listeners]
-
-                await asyncio.sleep(0)  # yield back to event loop after each iteration
-
-            created_listener = created_listener[0]
-
-            await self.ws.send_gc_message(msg)
-
-            resp = await gc_message_task
-            if resp.body.recipe_id == -1:
-                # need to make sure to cleanup *everything*
-                created_listener[0].cancel()  # cancel the future
-                self._listeners["crafting_complete"].remove(created_listener)  # remove the listener
-                items_task.cancel()  # cancel the task
+            if resp.body.recipe_id == -1:  # failed to craft, we need to make sure to cleanup *everything*
+                future.cancel()  # cancel the future
+                listeners.remove((future, return_true))  # remove the listener
                 return None
 
-            return await items_task
+            return await future
 
     async def wait_for_gc_ready(self):
         await self._connection._gc_ready.wait()

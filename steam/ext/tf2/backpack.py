@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import inspect
 import re
-from typing import Optional, TYPE_CHECKING, TypeVar
+from collections.abc import Iterable
+from typing import Optional, TYPE_CHECKING, TypeVar, cast
 
 from betterproto.casing import pascal_case
 
@@ -31,7 +32,7 @@ WEARS: dict[str, WearLevel] = {
     "(Minimal Wear)": WearLevel.MinimalWear,
     "(Factory New)": WearLevel.FactoryNew,
 }
-WEAR_PARSER = re.compile("|".join(wear.replace("(", "\(").replace(")", "\)") for wear in WEARS))
+WEAR_PARSER = re.compile("|".join(re.escape(wear) for wear in WEARS))
 BPI = TypeVar("BPI", bound="BackPackItem")
 
 
@@ -74,6 +75,7 @@ class BackPackItem(Item):
         "_state",
     ) + tuple(CsoEconItem.__annotations__)
 
+    id: int
     position: int
     quality: Optional[ItemQuality]
 
@@ -251,15 +253,15 @@ class BackPack(Inventory[BPI]):
                     setattr(self, name, attr)
                 except (AttributeError, TypeError):
                     pass
-        self.items = [BackPackItem(item, self._state) for item in inventory.items]
+        self.items = [BackPackItem(item, cast("GCState", self._state)) for item in inventory.items]
 
-    async def set_positions(self, items_and_positions: list[tuple[BackPackItem, int]]) -> None:
+    async def set_positions(self, items_and_positions: Iterable[tuple[BackPackItem, int]]) -> None:
         """|coro|
         Set the positions of items in the inventory.
 
         Parameters
         ----------
-        items_and_positions: list[tuple[:class:`BackPackItem`, int]]
+        items_and_positions: Iterable[tuple[:class:`BackPackItem`, :class:`int`]]
             A list of (item, position) pairs to set the positions for.
         """
         # TODO is this 0 indexed?
