@@ -20,6 +20,9 @@ classifiers=[
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
+packages = [
+    { include = "steam" }
+]
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/Gobot1234/steam-ext-tf2/issues"
