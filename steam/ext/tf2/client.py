@@ -193,13 +193,13 @@ class Client(Client):
                 - :attr:`backpack_slots`
             """
 
-        async def on_crafting_complete(self, *items: tf2.BackPackItem) -> None:
+        async def on_crafting_complete(self, items: list[tf2.BackPackItem]) -> None:
             """|coro|
             Called after a crafting recipe is completed.
 
             Parameters
             ----------
-            *items: :class:`tf2.BackPackItem`
+            items: list[:class:`tf2.BackPackItem`]
                 The items the craft request created.
             """
 
@@ -385,9 +385,9 @@ class Client(Client):
             self,
             event: Literal["crafting_complete"],
             *,
-            check: Optional[Callable[[tuple[BackPackItem, ...]], bool]] = ...,
+            check: Optional[Callable[[list[BackPackItem]], bool]] = ...,
             timeout: Optional[float] = ...,
-        ) -> tuple[BackPackItem, ...]:
+        ) -> list[tf2.BackPackItem]:
             ...
 
         @overload
@@ -588,9 +588,9 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["crafting_complete"],
             *,
-            check: Optional[Callable[[CraftResponse], bool]] = ...,
+            check: Optional[Callable[[list[tf2.BackPackItem]], bool]] = ...,
             timeout: Optional[float] = ...,
-        ) -> CraftResponse:
+        ) -> list[tf2.BackPackItem]:
             ...
 
         @overload

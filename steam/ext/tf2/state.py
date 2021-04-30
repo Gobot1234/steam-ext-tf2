@@ -137,7 +137,7 @@ class GCState(ConnectionState):
                 if all(items):
                     break
                 await asyncio.sleep(0)
-            self.dispatch("crafting_complete", *items)
+            self.dispatch("crafting_complete", items)
 
     @register(Language.SOCacheSubscriptionCheck)
     async def parse_cache_check(self, _=None) -> None:
