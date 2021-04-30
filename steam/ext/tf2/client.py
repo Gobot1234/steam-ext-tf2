@@ -124,7 +124,7 @@ class Client(Client):
                 GCMsg(Language.Craft, recipe=recipe, items=[item.id for item in items])
             )
             # would like to be able to just check job_source_id, but it doesn't appear to get set (would also allow
-            # this to be used without the lock
+            # this to be used without the lock)
             resp = await self.wait_for("gc_message_receive", check=lambda c: isinstance(c.body, CraftResponse))  # noqa
 
             if resp.body.recipe_id == -1:  # failed to craft, we need to make sure to cleanup *everything*
