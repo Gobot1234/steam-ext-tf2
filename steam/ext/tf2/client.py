@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 import asyncio
@@ -244,6 +242,10 @@ class Client(Client):
                 "ready",
                 "login",
                 "logout",
+                "gc_connect",
+                "gc_disconnect",
+                "gc_ready",
+                "account_update",
             ],
             *,
             check: Optional[Callable[[], bool]] = ...,
@@ -355,37 +357,9 @@ class Client(Client):
         @overload
         async def wait_for(
             self,
-            event: Literal[
-                "socket_raw_receive",
-                "socket_raw_send",
-            ],
-            *,
-            check: Optional[Callable[[bytes], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> bytes:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal[
-                "gc_connect",
-                "gc_disconnect",
-                "gc_ready",
-                "account_update",
-            ],
-            *,
-            check: Optional[Callable[[], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> None:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
             event: Literal["crafting_complete"],
             *,
-            check: Optional[Callable[[list[BackPackItem]], bool]] = ...,
+            check: Optional[Callable[[list[tf2.BackPackItem]], bool]] = ...,
             timeout: Optional[float] = ...,
         ) -> list[tf2.BackPackItem]:
             ...
@@ -417,6 +391,10 @@ class Bot(commands.Bot, Client):
                 "ready",
                 "login",
                 "logout",
+                "gc_connect",
+                "gc_disconnect",
+                "gc_ready",
+                "account_update",
             ],
             *,
             check: Optional[Callable[[], bool]] = ...,
@@ -523,19 +501,6 @@ class Bot(commands.Bot, Client):
             check: Optional[Callable[[Msgs], bool]] = ...,
             timeout: Optional[float] = ...,
         ) -> Msgs:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal[
-                "socket_raw_receive",
-                "socket_raw_send",
-            ],
-            *,
-            check: Optional[Callable[[bytes], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> bytes:
             ...
 
         @overload
@@ -571,36 +536,11 @@ class Bot(commands.Bot, Client):
         @overload
         async def wait_for(
             self,
-            event: Literal[
-                "gc_connect",
-                "gc_disconnect",
-                "gc_ready",
-                "account_update",
-            ],
-            *,
-            check: Optional[Callable[[], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> None:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
             event: Literal["crafting_complete"],
             *,
             check: Optional[Callable[[list[tf2.BackPackItem]], bool]] = ...,
             timeout: Optional[float] = ...,
         ) -> list[tf2.BackPackItem]:
-            ...
-
-        @overload
-        async def wait_for(
-            self,
-            event: Literal["backpack_update"],
-            *,
-            check: Optional[Callable[[BackPack], bool]] = ...,
-            timeout: Optional[float] = ...,
-        ) -> BackPack:
             ...
 
         @overload

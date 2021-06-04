@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from steam.protobufs import PROTOBUFS
 
 from ..enums import Language

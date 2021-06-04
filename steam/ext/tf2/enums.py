@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from ...enums import Enum, IntEnum
 
 __all__ = (

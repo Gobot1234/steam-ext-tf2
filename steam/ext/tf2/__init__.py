@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import vdf
 
 from .backpack import *
