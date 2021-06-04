@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 import re
 from collections.abc import Iterable
-from typing import Optional, TYPE_CHECKING, TypeVar, cast
+from typing import TYPE_CHECKING, Optional, cast
 
 from betterproto.casing import pascal_case
 
@@ -31,7 +31,6 @@ WEARS: dict[str, WearLevel] = {
     "(Factory New)": WearLevel.FactoryNew,
 }
 WEAR_PARSER = re.compile("|".join(re.escape(wear) for wear in WEARS))
-BPI = TypeVar("BPI", bound="BackPackItem")
 
 
 class BackPackItem(Item):
@@ -66,7 +65,7 @@ class BackPackItem(Item):
         The item's level.
     """
 
-    # others not a clue please feel to PR them
+    # others not a clue please feel free to PR them
 
     __slots__ = (
         "position",
@@ -239,10 +238,8 @@ if TYPE_CHECKING:
         ...
 
 
-class BackPack(Inventory[BPI]):
+class BackPack(Inventory[BackPackItem]):
     """A class to represent the client's backpack."""
-
-    items: list[BPI]
 
     def __init__(self, inventory: Inventory):  # noqa
         for name, attr in inspect.getmembers(inventory, lambda attr: not _is_descriptor(attr)):
