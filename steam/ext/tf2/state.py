@@ -26,19 +26,8 @@ log = logging.getLogger(__name__)
 
 
 class GCState(ConnectionState):
-    gc_parsers: dict[Language, EventParser[Language]] = {}
+    gc_parsers: dict[Language, EventParser]
     client: Client
-
-    __slots__ = (
-        "schema",
-        "language",
-        "backpack",
-        "backpack_slots",
-        "_unpatched_inventory",
-        "_is_premium",
-        "_connected",
-        "_gc_ready",
-    )
 
     def __init__(self, client: Client, **kwargs: Any):
         super().__init__(client, **kwargs)
