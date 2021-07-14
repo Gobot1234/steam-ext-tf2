@@ -94,11 +94,6 @@ class Client(Client):
         """|coro|
         Craft a set of items together with an optional recipe.
 
-        Note
-        ----
-        This internally acquires a lock and is only able to craft one set of items at a time as we have to wait for a
-        response to get the items crafted.
-
         Parameters
         ----------
         items: list[:class:`BackPackItem`]
@@ -112,25 +107,40 @@ class Client(Client):
         Optional[list[:class:`BackPackItem`]]
             The crafted items, ``None`` if crafting failed.
         """
+        ids = []
 
-        async with self._crafting_lock:
-            future = self.loop.create_future()
-            listeners = self._listeners.setdefault("crafting_complete", [])
-            listeners.append((future, return_true))
+        def check_gc_msg(msg: GCMsg[Any]) -> bool:
+            if isinstance(msg.body, CraftResponse):
+                if not msg.body.being_used:
+                    msg.body.being_used = True
+                    nonlocal ids
+                    ids = list(msg.body.id_list)
+                    return True
 
-            await self.ws.send_gc_message(
-                GCMsg(Language.Craft, recipe=recipe, items=[item.id for item in items])
-            )
-            # would like to be able to just check job_source_id, but it doesn't appear to get set (would also allow
-            # this to be used without the lock)
-            resp = await self.wait_for("gc_message_receive", check=lambda c: isinstance(c.body, CraftResponse))  # noqa
+            return False
 
-            if resp.body.recipe_id == -1:  # failed to craft, we need to make sure to cleanup *everything*
-                future.cancel()  # cancel the future
-                listeners.remove((future, return_true))  # remove the listener
-                return None
+        def check_crafting_complete(items: list[BackPackItem]):
+            return [item.id for item in items] == ids
 
-            return await future
+        future = self.loop.create_future()
+        listeners = self._listeners.setdefault("crafting_complete", [])
+        listeners.append((future, check_crafting_complete))
+
+        await self.ws.send_gc_message(GCMsg(Language.Craft, recipe=recipe, items=[item.id for item in items]))
+
+        try:
+            resp = await self.wait_for("gc_message_receive", check=check_gc_msg, timeout=30)
+        except asyncio.TimeoutError:
+            recipe_id = -1
+        else:
+            recipe_id = resp.body.recipe_id
+
+        if recipe_id == -1:  # failed to craft, we need to make sure to cleanup *everything*
+            future.cancel()  # cancel the future
+            listeners.remove((future, return_true))  # remove the listener
+            return None
+
+        return await future
 
     async def wait_for_gc_ready(self):
         await self._connection._gc_ready.wait()
