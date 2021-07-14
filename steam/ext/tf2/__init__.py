@@ -2,6 +2,7 @@ import vdf
 
 from .backpack import *
 from .client import *
+from .currency import *
 from .enums import *
 
 VDF_DECODER = vdf.loads  #: The default VDF decoder to use
