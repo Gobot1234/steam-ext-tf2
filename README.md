@@ -10,9 +10,9 @@ To install this extension just run:
 
 ```sh
 # Linux/macOS
-python3 -m pip install -U "steam-ext-tf2 @ git+https://github.com/Gobot1234/steam-ext-tf2@master"
+python3 -m pip install -U "steam-ext-tf2 @ git+https://github.com/Gobot1234/steam-ext-tf2@main"
 # Windows
-py -m pip install -U "steam-ext-tf2 @ git+https://github.com/Gobot1234/steam-ext-tf2@master"
+py -m pip install -U "steam-ext-tf2 @ git+https://github.com/Gobot1234/steam-ext-tf2@main"
 ```
 
 ## Example Auto-crafting metal
@@ -23,10 +23,12 @@ from steam.ext import tf2
 
 bot = tf2.Bot(command_prefix="!")
 
+
 @bot.event
 async def on_ready() -> None:
     print("Bot is ready")
 
+    
 @bot.event
 async def on_trade_accept(trade: steam.TradeOffer) -> None:
     refined_crafted = 0
