@@ -79,16 +79,17 @@ class ItemSlot(IntEnum):
     Taunt6    = 16
     Taunt7    = 17
     Taunt8    = 18
-    Misc      = 100  # not actually real but good for BackPackItem.slot
-    Gift      = 101  # same as above
+    Misc      = 100  # these are not real but are used for BackPackItem.slot
+    Gift      = 101
+    CraftItem = 102
 
 
 class WearLevel(Enum):
-    FactoryNew    = "Factory New"
-    MinimalWear   = "Minimal Wear"
-    FieldTested   = "Field Tested"
-    WellWorn      = "Well Worn"
-    BattleScarred = "Battle Scarred"
+    FactoryNew    = "(Factory New)"
+    MinimalWear   = "(Minimal Wear)"
+    FieldTested   = "(Field-Tested)"
+    WellWorn      = "(Well-Worn)"
+    BattleScarred = "(Battle Scarred)"
 
 
 class BackpackSortType(IntEnum):  # N.B only in game ones will actually work

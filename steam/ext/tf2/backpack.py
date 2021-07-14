@@ -3,15 +3,17 @@ from __future__ import annotations
 import inspect
 import re
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from betterproto.casing import pascal_case
+from multidict import MultiDict
+from typing_extensions import Literal, TypedDict
 
-from ...enums import _is_descriptor
-from ...user import User
-from ...trade import Inventory, Item
+from ... import utils
 from ...protobufs import GCMsg, GCMsgProto
-from .enums import BackpackSortType, Mercenary, ItemQuality, ItemSlot, Language, WearLevel
+from ...trade import Inventory, Item
+from ...user import User
+from .enums import BackpackSortType, ItemQuality, ItemSlot, Language, Mercenary, WearLevel
 from .protobufs.base_gcmessages import CsoEconItem
 
 if TYPE_CHECKING:
@@ -23,14 +25,88 @@ __all__ = (
 )
 
 
-WEARS: dict[str, WearLevel] = {
-    "(Battle Scarred)": WearLevel.BattleScarred,
-    "(Well-Worn)": WearLevel.WellWorn,
-    "(Field-Tested)": WearLevel.FieldTested,
-    "(Minimal Wear)": WearLevel.MinimalWear,
-    "(Factory New)": WearLevel.FactoryNew,
-}
-WEAR_PARSER = re.compile("|".join(re.escape(wear) for wear in WEARS))
+WEAR_PARSER = re.compile("|".join(re.escape(wear.name) for wear in WearLevel))
+Bools = Literal["0", "1"]
+
+
+class ValueDict(TypedDict):
+    value: int
+
+
+class ColorDict(TypedDict):  # I'm sorry my fellow tea drinkers
+    color_name: str
+
+
+class RaririesDict(TypedDict):
+    value: int
+    loc_key: str
+    loc_key_weapon: str
+    color: str
+    next_rarity: NotRequired[str]
+
+
+class EquipConflicts(TypedDict):
+    glasses: dict[str, int]
+    whole_head: dict[str, int]
+
+
+class CollectionDict(TypedDict):
+    name: str
+    description: str
+    is_reference_collection: Bools
+    items: dict[str, int]
+
+
+class OperationInfo(TypedDict):
+    name: str
+    gateway_item_name: str
+    required_item_name: str
+    operation_start_date: str  # format of "2017-10-15 00:00:00" and "2038-01-01 00:00:00"
+    stop_adding_to_queue_date: str
+    stop_giving_to_player_date: str
+    contracts_end_date: str  # all datetimes with above format
+    quest_log_res_file: NotRequired[str]
+    quest_list_res_file: NotRequired[str]
+    operation_lootlist: str
+    is_campaign: Literal[0, 1]
+    max_drop_count: NotRequired[int]
+
+
+class ItemInfo(TypedDict):
+    name: str
+    prefab: str
+    item_name: str
+    item_description: str
+    image_inventory: str
+
+
+class Schema(TypedDict):
+    game_info: dict[str, int]
+    qualities: dict[str, ValueDict]
+    colors: dict[str, ColorDict]
+    rarities: dict[str, RaririesDict]
+    equip_regions_list: dict[str, Literal[0, 1] | dict[Literal["shared"], Bools]]
+    equip_conflicts: dict[str, dict[str, Bools]]
+    quest_objective_conditions: list  # this is not really possible to type
+    item_series_types: dict[str, dict[str, Any]]
+    item_collections: dict[str, CollectionDict]
+    operations: dict[int, OperationInfo]
+    prefabs: dict[str, dict[str, Any]]  # there are too many options for this for me to type them for now TODO
+    items: dict[int, ItemInfo]
+
+
+def load_schema() -> Schema:
+    try:
+        from .state import SCHEMA
+    except AttributeError:  # I don't really know how you can feasibly get this but ¯\_(ツ)_/¯
+        raise RuntimeError("Cannot get schema when not logged into GC")
+    return SCHEMA
+
+
+cso_slots = CsoEconItem.__annotations__.copy()
+del cso_slots["id"]
+del cso_slots["quality"]
+del cso_slots["def_index"]
 
 
 class BackPackItem(Item):
@@ -51,46 +127,26 @@ class BackPackItem(Item):
     ----------
     id: :class:`int`
         An alias for :attr:`asset_id`.
-    quality: :class:`ItemQuality`
-        The item's quality.
     position: :class:`int`
         The item's position in the backpack.
     account_id: :class:`int`
         Same as the :attr:`steam.SteamID.id` of the :attr:`steam.Client.user`.
     inventory: :class:`int`
         The attribute the :attr:`position` is calculated from.
-    def_index: :class:`int`
-        The item's def index. This is used to form the item's SKU.
     level: :class:`int`
         The item's level.
     """
 
     # others not a clue please feel free to PR them
 
-    __slots__ = (
-        "position",
-        "_state",
-    ) + tuple(CsoEconItem.__annotations__)
+    __slots__ = ("position", "_quality", "_def_index", "_state", *cso_slots)
 
-    id: int
     position: int
     quality: Optional[ItemQuality]
 
-    def __init__(self, item: Item, state: Optional[GCState] = None):  # noqa
-        for name, attr in inspect.getmembers(item, predicate=lambda attr: not _is_descriptor(attr)):
-            if not (name.startswith("__") and name.endswith("__")):
-                try:
-                    setattr(self, name, attr)
-                except (AttributeError, TypeError):
-                    pass
-        try:
-            self.quality = ItemQuality.try_value(self.quality)
-        except AttributeError:
-            for tag in self.tags:
-                if tag.get("category") == "Quality":
-                    self.quality = getattr(ItemQuality, tag["internal_name"], None)
-
-        self._state = state
+    def __init__(self, item: Item, *, _state: Optional[GCState] = None):  # noqa
+        utils.update_class(item, self)
+        self._state = _state
 
     def __repr__(self) -> str:
         item_repr = super().__repr__()[6:-1]
@@ -98,6 +154,33 @@ class BackPackItem(Item):
         attrs = ("position",)
         resolved.extend(f"{attr}={getattr(self, attr, None)!r}" for attr in attrs)
         return f"<BackPackItem {' '.join(resolved)}>"
+
+    @property
+    def id(self) -> int:
+        if self._state is None:
+            raise ValueError("cannot access id not your own items")
+        return self.asset_id
+
+    @id.setter
+    def id(self, value: int) -> None:
+        ...  # assignments should just do nothing.
+
+    @property
+    def quality(self) -> ItemQuality | None:
+        """Optional[:class:`ItemQuality`]: The item's quality."""
+        return self._quality
+
+    @quality.setter
+    def quality(self, value: int | str) -> None:
+        try:
+            self._quality = ItemQuality.try_value(value)
+        except AttributeError:
+            for tag in self.tags:
+                if tag.get("category") == "Quality":
+                    try:
+                        self._quality = ItemQuality[tag["internal_name"].title()]
+                    except KeyError:
+                        self._quality = None
 
     async def use(self) -> None:
         """|coro|
@@ -204,11 +287,11 @@ class BackPackItem(Item):
     @property
     def wear(self) -> Optional[WearLevel]:
         wear = WEAR_PARSER.findall(self.name)
-        return WEARS[wear[0]] if wear else None
+        return WearLevel[wear[0]] if wear else None
 
     @property
     def equipable_by(self) -> list[Mercenary]:
-        tags = [dict for dict in self.tags if dict.get("category") == "Class"]
+        tags = [tag for tag in self.tags if tag.get("category") == "Class"]
         return [Mercenary[mercenary["internal_name"]] for mercenary in tags]
 
     @property
@@ -217,16 +300,82 @@ class BackPackItem(Item):
             if tag.get("category") == "Type" and "internal_name" in tag:
                 try:
                     return ItemSlot[
-                        pascal_case(tag["internal_name"], strict=False).replace("Pda", "PDA").replace("Tf_Gift", "Gift")
+                        pascal_case(tag["internal_name"], strict=False)
+                        .replace("Pda", "PDA")
+                        .replace("Tf_Gift", "Gift")
+                        .replace("Craft Item", "CraftItem")
                     ]
                 except KeyError:
                     return tag["internal_name"]
 
+    @property
+    def def_index(self) -> int:
+        """:class:`int`: The item's def index. This is used to form the item's SKU."""
+        try:
+            return self._def_index
+        except AttributeError:
+            schema = load_schema()
+            for def_index, item in schema["items"].items():
+                if item.get("name") == self.name:
+                    self._def_index = def_index
+                    return def_index
+
+    @def_index.setter
+    def def_index(self, value: int) -> None:
+        self._def_index = value
+
+    # @property
+    # def unusual_effect(self):
+    #     print()
+
+    @property
+    def sku(self) -> str:
+        parts = [self.defindex, ";", self.quality.value]
+
+        if self.unusual:
+            parts.append(f";u{self.unusual.value}")
+
+        if self.is_australium():
+            parts.append(";australium")
+
+        if not self.is_craftable():
+            parts.append(";uncraftable")
+
+        if self.wear:
+            parts.append(f";w{self.wear}")  # TODO check
+
+        if self.texture:
+            parts.append(f";pk{self.texture}")
+
+        if self.elevated:
+            parts.append(";strange")
+
+        if self.killstreak:
+            parts.append(f";kt-{self.killstreak}")
+
+        # if self.defindex:
+        #     parts.append(f";td-{self.targetDefindex}")
+
+        if self.festivized:
+            parts.append(";festive")
+
+        if self.craft_number:
+            parts.append(f";n{self.selfNumber.value}")
+
+        if self.crate_number:
+            parts.append(f";c{self.selfNumber.value}")
+
+        return "".join(parts)
+
+    @classmethod
+    def from_sku(cls):
+        self = cls.__new__(cls)
+        self.def_index = ...
+        return self
+
     # TODO:
     # - festiveized
     # - effect
-    # - to_sku
-    # - from_sku?
     # - to_listing?
     # - from_listing?
 
@@ -242,13 +391,8 @@ class BackPack(Inventory[BackPackItem]):
     """A class to represent the client's backpack."""
 
     def __init__(self, inventory: Inventory):  # noqa
-        for name, attr in inspect.getmembers(inventory, lambda attr: not _is_descriptor(attr)):
-            if not (name.startswith("__") and name.endswith("__")):
-                try:
-                    setattr(self, name, attr)
-                except (AttributeError, TypeError):
-                    pass
-        self.items = [BackPackItem(item, cast("GCState", self._state)) for item in inventory.items]
+        utils.update_class(inventory, self)
+        self.items = [BackPackItem(item, _state=self._state) for item in inventory.items]  # type: ignore
 
     async def set_positions(self, items_and_positions: Iterable[tuple[BackPackItem, int]]) -> None:
         """|coro|
