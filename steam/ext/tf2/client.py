@@ -13,7 +13,7 @@ from ...client import Client
 from ...ext import commands
 from ...game import TF2, Game
 from ...gateway import Msgs, return_true
-from ...protobufs import GCMsg
+from ...protobufs import GCMsg, GCMsgProto
 from ...user import ClientUser, User
 from .enums import Language
 from .protobufs.struct_messages import CraftResponse
@@ -44,11 +44,13 @@ class TF2ClientUser(ClientUser):
     async def inventory(self, game: Game) -> Inventory:
         ...
 
+    async def inventory(self, game: Game) -> Inventory:
+        ...
+
 
 class Client(Client):
     GAME: Final[Game] = TF2
-
-    user: Optional[TF2ClientUser]
+    user: TF2ClientUser
 
     def __init__(self, loop: Optional[asyncio.AbstractEventLoop] = None, **options: Any):
         game = options.pop("game", None)
@@ -70,15 +72,15 @@ class Client(Client):
         return self._connection.schema
 
     @property
-    def backpack_slots(self) -> Optional[int]:
-        """Optional[:class:`int`]: The client's number of backpack slots. ``None`` if the user isn't ready."""
+    def backpack_slots(self) -> int:
+        """:class:`int`: The client's number of backpack slots."""
         return self._connection.backpack_slots
 
-    def is_premium(self) -> Optional[bool]:
+    def is_premium(self) -> bool:
         """
         Optional[:class:`bool`]: Whether or not the client's account has TF2 premium. ``None`` if the user isn't ready.
         """
-        return self._connection._is_premium
+        return self._connection._is_premium  # type: ignore
 
     def set_language(self, file: os.PathLike[str]) -> None:
         """Set the localization files for your bot.
