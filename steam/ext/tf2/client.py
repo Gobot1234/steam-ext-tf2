@@ -121,8 +121,8 @@ class Client(Client):
 
             return False
 
-        def check_crafting_complete(items: list[BackPackItem]):
-            return [item.id for item in items] == ids
+        def check_crafting_complete(items: list[BackPackItem]) -> bool:
+            return [item.asset_id for item in items] == ids
 
         future = self.loop.create_future()
         listeners = self._listeners.setdefault("crafting_complete", [])
@@ -137,9 +137,8 @@ class Client(Client):
         else:
             recipe_id = resp.body.recipe_id
 
-        if recipe_id == -1:  # failed to craft, we need to make sure to cleanup *everything*
-            future.cancel()  # cancel the future
-            listeners.remove((future, return_true))  # remove the listener
+        if recipe_id == -1:
+            future.cancel()  # cancel the future (it's cleaned from _listeners up by dispatch)
             return None
 
         return await future

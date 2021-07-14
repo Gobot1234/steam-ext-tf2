@@ -9,12 +9,13 @@ from typing import TYPE_CHECKING, Any, Optional
 from multidict import MultiDict
 
 from ... import utils
+from ...errors import HTTPException
 from ...game import TF2, Game
 from ...models import EventParser, register
 from ...protobufs import EMsg, GCMsg, GCMsgProto, MsgProto
 from ...state import ConnectionState
 from ...trade import Inventory
-from .backpack import BackPack, BackPackItem
+from .backpack import BackPack, BackPackItem, Schema
 from .enums import Language
 from .protobufs import base_gcmessages as cso, gcsdk_gcmessages as so, struct_messages
 
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     from .client import Client
 
 log = logging.getLogger(__name__)
+SCHEMA: Schema
 
 
 class GCState(ConnectionState):
@@ -31,10 +33,11 @@ class GCState(ConnectionState):
 
     def __init__(self, client: Client, **kwargs: Any):
         super().__init__(client, **kwargs)
-        self.schema: Optional[MultiDict] = None
+        self.schema: Schema
+        self._unpatched_inventory: Callable[[Game], Coroutine[None, None, Inventory]] = None  # type: ignore
+        self.backpack = None
         self.language: Optional[MultiDict] = None
         self.backpack_slots: Optional[int] = None
-        self._unpatched_inventory: Optional[Callable[[Game], Coroutine[None, None, Inventory]]] = None
         self._is_premium: Optional[bool] = None
         self._connected = asyncio.Event()
         self._gc_ready = asyncio.Event()
@@ -95,7 +98,9 @@ class GCState(ConnectionState):
 
         from . import VDF_DECODER  # circular import
 
-        self.schema = VDF_DECODER(await resp.text())["items_game"]
+        global SCHEMA
+
+        self.schema = SCHEMA = (await utils.to_thread(VDF_DECODER, await resp.text()))["items_game"]
         log.info("Loaded schema")
 
     @register(Language.SystemMessage)
@@ -120,7 +125,7 @@ class GCState(ConnectionState):
         # this is called after item_receive so no fetching is necessary
         if msg.body.id_list:  # only empty if crafting failed
             while True:
-                items = [utils.find(lambda i: i.asset_id == item_id, self.backpack) for item_id in msg.body.id_list]
+                items = [utils.get(self.backpack, asset_id=item_id) for item_id in msg.body.id_list]
                 if all(items):
                     break
                 await asyncio.sleep(0)
@@ -143,7 +148,17 @@ class GCState(ConnectionState):
 
     async def update_backpack(self, *items: cso.CsoEconItem) -> BackPack:
         await self.client.wait_until_ready()
-        backpack = BackPack(await self._unpatched_inventory(TF2))
+
+        backpack = self.backpack or BackPack(await self._unpatched_inventory(TF2))
+        backpack_item_ids = [item.asset_id for item in backpack]
+
+        if any(backpack_item.id not in backpack_item_ids for backpack_item in items):
+            try:
+                backpack = BackPack(await self._unpatched_inventory(TF2))
+            except HTTPException:
+                await asyncio.sleep(30)
+                return await self.update_backpack(*items)
+
         for item in backpack:
             for backpack_item in items:
                 if item.asset_id == backpack_item.id:
@@ -162,7 +177,7 @@ class GCState(ConnectionState):
                 items = [cso.CsoEconItem().parse(item_data) for item_data in cache.object_data]
                 for item in await self.update_backpack(*items):
                     is_new = (item.inventory >> 30) & 1
-                    item.position = 0 if is_new else item.inventory & 0xffff
+                    item.position = 0 if is_new else item.inventory & 0xFFFF
             elif cache.type_id == 7:  # account metadata
                 proto = cso.CsoEconGameAccountClient().parse(cache.object_data[0])
                 self._is_premium = not proto.trial_account
@@ -177,13 +192,13 @@ class GCState(ConnectionState):
             return
 
         received_item = cso.CsoEconItem().parse(msg.body.object_data)
-        item = utils.find(lambda i: i.asset_id == received_item.id, await self.update_backpack(received_item))
+        item = utils.get(await self.update_backpack(received_item), asset_id=received_item.id)
 
         if item is None:
             await self.restart_tf2()  # steam doesn't add the item to your api inventory until you restart tf2
             return await self.parse_item_add(msg)
 
-        item.position = item.inventory & 0x0000ffff
+        item.position = item.inventory & 0x0000FFFF
         self.dispatch("item_receive", item)
 
     async def restart_tf2(self) -> None:
@@ -205,12 +220,14 @@ class GCState(ConnectionState):
             if not self.backpack:
                 return
 
-            def check(item: BackPackItem) -> bool:
-                return item.asset_id == int(item.id)
+            item = cso.CsoEconItem().parse(item.object_data)
+
+            def check(item_: BackPackItem) -> bool:
+                return item_.asset_id == int(item.id)
 
             old_item = utils.find(check, self.backpack)
             new_item = utils.find(check, await self.update_backpack(item))
-            new_item.position = item.inventory & 0x0000ffff
+            new_item.position = item.inventory & 0x0000FFFF
             self.dispatch("item_update", old_item, new_item)
         elif item.type_id == 7:
             proto = cso.CsoEconGameAccountClient().parse(item.object_data)

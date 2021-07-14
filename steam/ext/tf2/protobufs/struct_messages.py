@@ -22,13 +22,15 @@ class CraftRequest(StructMessage):
 class CraftResponse(StructMessage):
     recipe_id: int
     id_list: tuple[int, ...]
+    being_used: bool
 
     def parse(self, data: bytes) -> CraftResponse:
         buffer = StructIO(data)
         self.recipe_id = buffer.read_i16()
         _ = buffer.read_u32()  # always 0 in mckay's experience
         id_count = buffer.read_i16()
-        self.id_list = buffer.read_struct(f"<{id_count}Q", 8 * id_count)
+        self.id_list = buffer.read_struct(f"<{id_count}Q")
+        self.being_used = False
 
         return self
 
