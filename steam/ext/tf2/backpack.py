@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import inspect
 import re
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional
 
 from betterproto.casing import pascal_case
-from multidict import MultiDict
 from typing_extensions import Literal, TypedDict
 
 from ... import utils
@@ -80,6 +78,42 @@ class ItemInfo(TypedDict):
     image_inventory: str
 
 
+class AttributeInfo(TypedDict):
+    name: str
+    attribute_class: str
+    description_string: NotRequired[str]
+    description_format: str
+    hidden: Bools
+    effect_type: Literal["positive", "neutral", "negative"]
+    stored_as_integer: Bools
+    armory_desc: NotRequired[str]
+
+
+class ItemSet(TypedDict):
+    name: str
+    items: dict[str, Literal["1"]]
+    attributes: dict[str, dict[str, str]]
+    store_bundle: NotRequired[str]
+
+
+class CraftInfo(TypedDict):
+    name: str
+    n_A: str
+    desc_inputs: str
+    desc_outputs: str
+    di_A: str
+    di_B: str
+    do_A: str
+    do_B: str
+    all_same_class: NotRequired[Bools]
+    always_known: Bools
+    premium_only: Bools
+    disabled: Bools
+    input_items: dict[
+        str,
+    ]
+
+
 class Schema(TypedDict):
     game_info: dict[str, int]
     qualities: dict[str, ValueDict]
@@ -93,6 +127,15 @@ class Schema(TypedDict):
     operations: dict[int, OperationInfo]
     prefabs: dict[str, dict[str, Any]]  # there are too many options for this for me to type them for now TODO
     items: dict[int, ItemInfo]
+    attributes: dict[str, AttributeInfo]
+    item_criteria_templates: dict[str, dict[str, str]]
+    random_attribute_templates: dict[str, dict[str, str]]
+    lootlist_job_template_definitions: dict[str, dict[str, str]]
+    item_sets: dict[str, ItemSet]
+    client_loot_lists: dict[str, str | dict[str, Literal["1"]]]
+    revolving_loot_lists: dict[str, str]
+    recipes: dict[str, CraftInfo]
+    achievement_rewards: dict[str, str | dict[str, str | dict[str, str]]]
 
 
 def load_schema() -> Schema:
@@ -158,7 +201,7 @@ class BackPackItem(Item):
     @property
     def id(self) -> int:
         if self._state is None:
-            raise ValueError("cannot access id not your own items")
+            raise ValueError("cannot access the id of items you don't own")
         return self.asset_id
 
     @id.setter
@@ -250,7 +293,7 @@ class BackPackItem(Item):
         Parameters
         ----------
         position: :class:`int`
-            The position to set the item to.
+            The position to set the item to. This is 0 indexed
         """
         await self._state.backpack.set_positions([(self, position)])
 
@@ -401,9 +444,8 @@ class BackPack(Inventory[BackPackItem]):
         Parameters
         ----------
         items_and_positions: Iterable[tuple[:class:`BackPackItem`, :class:`int`]]
-            A list of (item, position) pairs to set the positions for.
+            A list of (item, position) pairs to set the positions for. This is 0 indexed.
         """
-        # TODO is this 0 indexed?
         msg = GCMsgProto(
             Language.SetItemPositions,
             item_positions=[{"item_id": item.id, "position": position} for item, position in items_and_positions],

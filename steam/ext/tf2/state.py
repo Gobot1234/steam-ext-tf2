@@ -137,7 +137,7 @@ class GCState(ConnectionState):
         msg = GCMsgProto(Language.SOCacheSubscriptionRefresh, owner=self.client.user.id64)
         await self.ws.send_gc_message(msg)
 
-    def patch_user_inventory(self, new_inventory: Inventory) -> None:
+    def patch_user_inventory(self, new_inventory: BackPack) -> None:
         async def inventory(_, game: Game) -> Inventory:
             if game != TF2:
                 return await self._unpatched_inventory(game)

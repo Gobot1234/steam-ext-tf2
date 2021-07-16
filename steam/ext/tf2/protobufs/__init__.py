@@ -28,6 +28,7 @@ PROTOBUFS.update(
         Language.UseItemRequest: cso_messages.CMsgUseItem,
         Language.SortItems: cso_messages.CMsgSortItems,
         Language.AdjustItemEquippedState: cso_messages.CMsgAdjustItemEquippedState,
+        Language.RequestInventoryRefresh: cso_messages.CMsgRequestInventoryRefresh,
         # struct messages
         Language.Craft: struct_messages.CraftRequest,
         Language.CraftResponse: struct_messages.CraftResponse,

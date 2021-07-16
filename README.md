@@ -2,7 +2,7 @@
 
 An extension to interact with the Team Fortress 2 Game Coordinator for 
 [steam.py](https://github.com/Gobot1234/steam.py). `tf2.Client` and `tf2.Bot` are `steam.Client` and `commands.Bot` 
-subclasses respectively, so whatever you did with `steam`/`ext.commands` you can do with `ext.tf2`
+subclasses respectively, so whatever you can do with `steam`/`ext.commands` you can do with `ext.tf2`
 
 ## Installation
 

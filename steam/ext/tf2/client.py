@@ -113,7 +113,7 @@ class Client(Client):
 
         def check_gc_msg(msg: GCMsg[Any]) -> bool:
             if isinstance(msg.body, CraftResponse):
-                if not msg.body.being_used:
+                if not msg.body.being_used:  # queue is fifo, so this works fine
                     msg.body.being_used = True
                     nonlocal ids
                     ids = list(msg.body.id_list)
@@ -131,7 +131,7 @@ class Client(Client):
         await self.ws.send_gc_message(GCMsg(Language.Craft, recipe=recipe, items=[item.id for item in items]))
 
         try:
-            resp = await self.wait_for("gc_message_receive", check=check_gc_msg, timeout=30)
+            resp = await self.wait_for("gc_message_receive", check=check_gc_msg, timeout=60)
         except asyncio.TimeoutError:
             recipe_id = -1
         else:
