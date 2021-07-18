@@ -6,13 +6,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional, overload
 
-from multidict import MultiDict
 from typing_extensions import Final, Literal
 
 from ...client import Client
 from ...ext import commands
 from ...game import TF2, Game
-from ...gateway import Msgs, return_true
+from ...gateway import Msgs
 from ...protobufs import GCMsg, GCMsgProto
 from ...user import ClientUser, User
 from .enums import Language
@@ -27,7 +26,7 @@ if TYPE_CHECKING:
     from ...message import Message
     from ...trade import Inventory, TradeOffer
     from ..commands import Context
-    from .backpack import BackPack, BackPackItem
+    from .backpack import BackPack, BackPackItem, Schema
 
 __all__ = (
     "Client",
@@ -41,9 +40,6 @@ class TF2ClientUser(ClientUser):
         ...
 
     @overload
-    async def inventory(self, game: Game) -> Inventory:
-        ...
-
     async def inventory(self, game: Game) -> Inventory:
         ...
 
@@ -67,13 +63,13 @@ class Client(Client):
         self._connection = GCState(client=self, **options)
 
     @property
-    def schema(self) -> Optional[MultiDict]:
-        """Optional[:class:`multidict.MultiDict`]: TF2's item schema."""
+    def schema(self) -> Schema:
+        """Optional[:class:`multidict.MultiDict`]: TF2's item schema. ``None`` if the user isn't ready."""
         return self._connection.schema
 
     @property
     def backpack_slots(self) -> int:
-        """:class:`int`: The client's number of backpack slots."""
+        """The client's number of backpack slots."""
         return self._connection.backpack_slots
 
     def is_premium(self) -> bool:
@@ -98,22 +94,23 @@ class Client(Client):
 
         Parameters
         ----------
-        items: list[:class:`BackPackItem`]
+        items
             The items to craft.
-        recipe: :class:`int`
+        recipe
             The recipe to craft them with default is -2 (wildcard). Setting for metal crafts isn't required. See
             https://github.com/DontAskM8/TF2-Crafting-Recipe/blob/master/craftRecipe.json for other recipe details.
 
-        Returns
-        -------
-        Optional[list[:class:`BackPackItem`]]
-            The crafted items, ``None`` if crafting failed.
+        Return
+        ------
+        The crafted items, ``None`` if crafting failed.
         """
-        ids = []
+
+        # race condition here.
 
         def check_gc_msg(msg: GCMsg[Any]) -> bool:
             if isinstance(msg.body, CraftResponse):
-                if not msg.body.being_used:  # queue is fifo, so this works fine
+                print("checking", msg)
+                if not msg.body.being_used:  # craft queue is FIFO, so this works fine
                     msg.body.being_used = True
                     nonlocal ids
                     ids = list(msg.body.id_list)
@@ -124,6 +121,7 @@ class Client(Client):
         def check_crafting_complete(items: list[BackPackItem]) -> bool:
             return [item.asset_id for item in items] == ids
 
+        ids = []
         future = self.loop.create_future()
         listeners = self._listeners.setdefault("crafting_complete", [])
         listeners.append((future, check_crafting_complete))
@@ -143,7 +141,7 @@ class Client(Client):
 
         return await future
 
-    async def wait_for_gc_ready(self):
+    async def wait_for_gc_ready(self) -> None:
         await self._connection._gc_ready.wait()
 
     # boring subclass stuff
@@ -259,7 +257,7 @@ class Client(Client):
                 "account_update",
             ],
             *,
-            check: Optional[Callable[[], bool]] = ...,
+            check: Callable[[], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> None:
             ...
@@ -269,7 +267,7 @@ class Client(Client):
             self,
             event: Literal["error"],
             *,
-            check: Optional[Callable[[str, Exception, tuple[Any, ...], dict[str, Any]], bool]] = ...,
+            check: Callable[[str, Exception, tuple[Any, ...], dict[str, Any]], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> tuple[str, Exception, tuple, dict]:
             ...
@@ -279,7 +277,7 @@ class Client(Client):
             self,
             event: Literal["message"],
             *,
-            check: Optional[Callable[[Message], bool]] = ...,
+            check: Callable[[Message], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> Message:
             ...
@@ -289,7 +287,7 @@ class Client(Client):
             self,
             event: Literal["comment"],
             *,
-            check: Optional[Callable[[Comment], bool]] = ...,
+            check: Callable[[Comment], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> Comment:
             ...
@@ -299,7 +297,7 @@ class Client(Client):
             self,
             event: Literal["user_update"],
             *,
-            check: Optional[Callable[[User, User], bool]] = ...,
+            check: Callable[[User, User], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> tuple[User, User]:
             ...
@@ -309,7 +307,7 @@ class Client(Client):
             self,
             event: Literal["typing"],
             *,
-            check: Optional[Callable[[User, datetime], bool]] = ...,
+            check: Callable[[User, datetime], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> tuple[User, datetime]:
             ...
@@ -327,7 +325,7 @@ class Client(Client):
                 "trade_counter",
             ],
             *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
+            check: Callable[[TradeOffer], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> TradeOffer:
             ...
@@ -337,7 +335,7 @@ class Client(Client):
             self,
             event: Literal["user_invite"],
             *,
-            check: Optional[Callable[[UserInvite], bool]] = ...,
+            check: Callable[[UserInvite], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> UserInvite:
             ...
@@ -347,7 +345,7 @@ class Client(Client):
             self,
             event: Literal["clan_invite"],
             *,
-            check: Optional[Callable[[ClanInvite], bool]] = ...,
+            check: Callable[[ClanInvite], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> ClanInvite:
             ...
@@ -360,7 +358,7 @@ class Client(Client):
                 "socket_send",
             ],
             *,
-            check: Optional[Callable[[Msgs], bool]] = ...,
+            check: Callable[[Msgs], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> Msgs:
             ...
@@ -370,7 +368,7 @@ class Client(Client):
             self,
             event: Literal["crafting_complete"],
             *,
-            check: Optional[Callable[[list[tf2.BackPackItem]], bool]] = ...,
+            check: Callable[[list[tf2.BackPackItem]], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> list[tf2.BackPackItem]:
             ...
@@ -384,7 +382,7 @@ class Client(Client):
                 "item_update",
             ],
             *,
-            check: Optional[Callable[[BackPackItem], bool]] = ...,
+            check: Callable[[BackPackItem], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> BackPackItem:
             ...
@@ -408,7 +406,7 @@ class Bot(commands.Bot, Client):
                 "account_update",
             ],
             *,
-            check: Optional[Callable[[], bool]] = ...,
+            check: Callable[[], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> None:
             ...
@@ -418,7 +416,7 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["error"],
             *,
-            check: Optional[Callable[[str, Exception, tuple[Any, ...], dict[str, Any]], bool]] = ...,
+            check: Callable[[str, Exception, tuple[Any, ...], dict[str, Any]], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> tuple[str, Exception, tuple, dict]:
             ...
@@ -428,7 +426,7 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["message"],
             *,
-            check: Optional[Callable[[Message], bool]] = ...,
+            check: Callable[[Message], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> Message:
             ...
@@ -438,7 +436,7 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["comment"],
             *,
-            check: Optional[Callable[[Comment], bool]] = ...,
+            check: Callable[[Comment], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> Comment:
             ...
@@ -448,7 +446,7 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["user_update"],
             *,
-            check: Optional[Callable[[User, User], bool]] = ...,
+            check: Callable[[User, User], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> tuple[User, User]:
             ...
@@ -458,7 +456,7 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["typing"],
             *,
-            check: Optional[Callable[[User, datetime], bool]] = ...,
+            check: Callable[[User, datetime], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> tuple[User, datetime]:
             ...
@@ -476,7 +474,7 @@ class Bot(commands.Bot, Client):
                 "trade_counter",
             ],
             *,
-            check: Optional[Callable[[TradeOffer], bool]] = ...,
+            check: Callable[[TradeOffer], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> TradeOffer:
             ...
@@ -486,7 +484,7 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["user_invite"],
             *,
-            check: Optional[Callable[[UserInvite], bool]] = ...,
+            check: Callable[[UserInvite], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> UserInvite:
             ...
@@ -496,7 +494,7 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["clan_invite"],
             *,
-            check: Optional[Callable[[ClanInvite], bool]] = ...,
+            check: Callable[[ClanInvite], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> ClanInvite:
             ...
@@ -509,7 +507,7 @@ class Bot(commands.Bot, Client):
                 "socket_send",
             ],
             *,
-            check: Optional[Callable[[Msgs], bool]] = ...,
+            check: Callable[[Msgs], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> Msgs:
             ...
@@ -519,7 +517,7 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["command_error"],
             *,
-            check: Optional[Callable[[Context, Exception], bool]] = ...,
+            check: Callable[[Context, Exception], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> tuple[Context, Exception]:
             ...
@@ -529,7 +527,7 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["command"],
             *,
-            check: Optional[Callable[[Context], bool]] = ...,
+            check: Callable[[Context], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> Context:
             ...
@@ -539,7 +537,7 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["command_completion"],
             *,
-            check: Optional[Callable[[Context], bool]] = ...,
+            check: Callable[[Context], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> Context:
             ...
@@ -549,7 +547,7 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["crafting_complete"],
             *,
-            check: Optional[Callable[[list[tf2.BackPackItem]], bool]] = ...,
+            check: Callable[[list[tf2.BackPackItem]], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> list[tf2.BackPackItem]:
             ...
@@ -563,7 +561,7 @@ class Bot(commands.Bot, Client):
                 "item_update",
             ],
             *,
-            check: Optional[Callable[[BackPackItem], bool]] = ...,
+            check: Callable[[BackPackItem], bool] = ...,
             timeout: Optional[float] = ...,
         ) -> BackPackItem:
             ...
