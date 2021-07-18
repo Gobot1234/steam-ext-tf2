@@ -71,6 +71,7 @@ class BackPackItem(Item):
         "_def_index",
         "_state",
     )
+    REPR_ATTRS = (*Item.REPR_ATTRS, "position")
 
     position: int  #: The item's position in the backpack.
 
