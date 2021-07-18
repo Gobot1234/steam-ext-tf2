@@ -148,9 +148,7 @@ class GCState(ConnectionState):
 
         self.client.user.__class__.inventory = inventory
 
-    async def update_backpack(
-        self, *cso_items: cso.CsoEconItem, is_cache_subscribe: bool = False, items: Optional[list[BackPackItem]] = None
-    ) -> list[BackPackItem]:
+    async def update_backpack(self, *cso_items: cso.CsoEconItem, is_cache_subscribe: bool = False) -> list[BackPackItem]:
         await self.client.wait_until_ready()
 
         backpack = self.backpack or BackPack(await self._unpatched_inventory(TF2))
@@ -168,7 +166,7 @@ class GCState(ConnectionState):
                 await self.restart_tf2()
                 await backpack.update()  # if the item still isn't here
 
-        items = items or []
+        items = []
         for cso_item in cso_items:  # merge the two items
             item = utils.get(backpack, asset_id=cso_item.id)
             if item is None:
