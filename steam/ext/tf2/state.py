@@ -154,7 +154,6 @@ class GCState(ConnectionState):
         await self.client.wait_until_ready()
 
         backpack = self.backpack or BackPack(await self._unpatched_inventory(TF2))
-        print("Got bp", backpack)
         item_ids = [item.asset_id for item in backpack]
 
         if not all(cso_item.id in item_ids for cso_item in cso_items):
