@@ -105,11 +105,8 @@ class Client(Client):
         The crafted items, ``None`` if crafting failed.
         """
 
-        # race condition here.
-
         def check_gc_msg(msg: GCMsg[Any]) -> bool:
             if isinstance(msg.body, CraftResponse):
-                print("checking", msg)
                 if not msg.body.being_used:  # craft queue is FIFO, so this works fine
                     msg.body.being_used = True
                     nonlocal ids
