@@ -148,7 +148,9 @@ class GCState(ConnectionState):
 
         self.client.user.__class__.inventory = inventory
 
-    async def update_backpack(self, *cso_items: cso.CsoEconItem, is_cache_subscribe: bool = False) -> list[BackPackItem]:
+    async def update_backpack(
+        self, *cso_items: cso.CsoEconItem, is_cache_subscribe: bool = False
+    ) -> list[BackPackItem]:
         await self.client.wait_until_ready()
 
         backpack = self.backpack or BackPack(await self._unpatched_inventory(TF2))
@@ -207,7 +209,7 @@ class GCState(ConnectionState):
 
         received_cso_item = cso.CsoEconItem().parse(msg.body.object_data)
         item = await self.update_backpack(received_cso_item)
-        if item:  # protect ,from a broken item
+        if item:  # protect from a broken item
             self.dispatch("item_receive", item[0])
 
     @utils.call_once
@@ -215,6 +217,7 @@ class GCState(ConnectionState):
         await self.client.change_presence(game=Game(id=0))
         self.parse_client_goodbye()
         await self.client.change_presence(game=TF2, games=self.client._original_games)
+        await self._connected.wait()
 
     @register(Language.SOUpdate)
     async def handle_so_update(self, msg: GCMsgProto[so.CMsgSOSingleObject]) -> None:
