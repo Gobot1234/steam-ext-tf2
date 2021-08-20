@@ -59,7 +59,7 @@ class Client(Client):
         self._original_games: Optional[list[Game]] = options.get("games")
         self._crafting_lock = asyncio.Lock()
 
-        super().__init__(loop, **options)
+        super().__init__(loop=loop, **options)
         self._connection = GCState(client=self, **options)
 
     @property
