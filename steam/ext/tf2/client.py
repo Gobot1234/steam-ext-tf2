@@ -60,7 +60,9 @@ class Client(Client):
         self._crafting_lock = asyncio.Lock()
 
         super().__init__(loop=loop, **options)
-        self._connection = GCState(client=self, **options)
+
+    def _get_state(self, **options: Any) -> GCState:
+        return GCState(client=self, **options)
 
     @property
     def schema(self) -> Schema:
