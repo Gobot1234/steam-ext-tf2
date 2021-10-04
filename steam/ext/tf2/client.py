@@ -145,7 +145,7 @@ class Client(Client):
 
     # boring subclass stuff
 
-    def _handle_ready(self) -> None:
+    async def _handle_ready(self) -> None:
         self._connection._unpatched_inventory = self.user.inventory
         super()._handle_ready()
 
