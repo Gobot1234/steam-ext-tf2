@@ -147,7 +147,7 @@ class Client(Client):
 
     async def _handle_ready(self) -> None:
         self._connection._unpatched_inventory = self.user.inventory
-        super()._handle_ready()
+        await super()._handle_ready()
 
     async def _on_gc_connect(self) -> None:
         """
