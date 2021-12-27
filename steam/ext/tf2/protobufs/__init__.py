@@ -12,7 +12,6 @@ PROTOBUFS.update(
         Language.SODestroy: sdk.SingleObject,
         Language.SOCacheSubscriptionRefresh: sdk.CacheSubscriptionRefresh,
         Language.SOCacheSubscribed: sdk.CacheSubscribed,
-        Language.SOCacheSubscriptionCheck: sdk.CacheSubscribed,
         Language.ClientWelcome: base.ClientWelcome,
         Language.ServerWelcome: base.ServerWelcome,
         Language.ClientHello: base.ClientHello,
@@ -38,5 +37,6 @@ PROTOBUFS.update(
         Language.UnwrapGiftRequest: struct_messages.UnwrapItemRequest,
         Language.DeliverGift: struct_messages.DeliverGiftRequest,
         Language.UnlockCrate: struct_messages.OpenCrateRequest,
+        Language.SOCacheSubscriptionCheck: struct_messages.CacheSubscribedCheck,
     }
 )

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing_extensions import Self
 
 from ....protobufs.struct_messages import StructMessage
 from ....utils import StructIO
@@ -25,7 +26,7 @@ class CraftResponse(StructMessage):
     being_used: bool
 
     def parse(self, data: bytes) -> CraftResponse:
-        with  StructIO(data) as io:
+        with StructIO(data) as io:
             self.recipe_id = io.read_i16()
             _ = io.read_u32()  # always 0 in mckay's experience
             id_count = io.read_i16()
@@ -68,3 +69,8 @@ class DeliverGiftRequest(StructMessage):
 class OpenCrateRequest(StructMessage):
     key_id: int
     crate_id: int
+
+
+class CacheSubscribedCheck(StructMessage):
+    def parse(self, data: bytes) -> Self:
+        return self  # IDK how to decode this but I don't want to have to special case this
