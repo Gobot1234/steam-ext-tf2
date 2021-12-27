@@ -11,12 +11,12 @@ class CraftRequest(StructMessage):
     items: list[int]
 
     def __bytes__(self) -> bytes:
-        buffer = StructIO()
-        buffer.write_struct("<hh", self.recipe, len(self.items))
-        for item in self.items:
-            buffer.write_u64(item)
+        with StructIO() as io:
+            io.write_struct("<hh", self.recipe, len(self.items))
+            for item in self.items:
+                io.write_u64(item)
 
-        return buffer.buffer
+            return io.buffer
 
 
 class CraftResponse(StructMessage):
@@ -25,12 +25,12 @@ class CraftResponse(StructMessage):
     being_used: bool
 
     def parse(self, data: bytes) -> CraftResponse:
-        buffer = StructIO(data)
-        self.recipe_id = buffer.read_i16()
-        _ = buffer.read_u32()  # always 0 in mckay's experience
-        id_count = buffer.read_i16()
-        self.id_list = buffer.read_struct(f"<{id_count}Q")
-        self.being_used = False
+        with  StructIO(data) as io:
+            self.recipe_id = io.read_i16()
+            _ = io.read_u32()  # always 0 in mckay's experience
+            id_count = io.read_i16()
+            self.id_list = io.read_struct(f"<{id_count}Q")
+            self.being_used = False
 
         return self
 
@@ -40,11 +40,11 @@ class SetItemStyleRequest(StructMessage):
     style: int
 
     def __bytes__(self) -> bytes:
-        buffer = StructIO()
-        buffer.write_u64(self.item_id)
-        buffer.write_u32(self.style)
+        with StructIO() as io:
+            io.write_u64(self.item_id)
+            io.write_u32(self.style)
 
-        return buffer.buffer
+            return io.buffer
 
 
 class DeleteItemRequest(StructMessage):

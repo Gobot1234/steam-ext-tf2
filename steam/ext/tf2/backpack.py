@@ -13,13 +13,17 @@ from ...user import User
 from .enums import BackpackSortType, ItemQuality, ItemSlot, Language, Mercenary, WearLevel
 
 if TYPE_CHECKING:
-    from .protobufs.base_gcmessages import CsoEconItem, CsoEconItemAttribute, CsoEconItemEquipped
+    from .protobufs.base import (
+        Item as ItemProto,
+        ItemAttribute as ItemAttributeProto,
+        ItemEquipped as ItemEquippedProto,
+    )
     from .schema import Schema
     from .state import GCState
 
 __all__ = (
-    "BackPackItem",
-    "BackPack",
+    "BackpackItem",
+    "Backpack",
 )
 
 
@@ -34,12 +38,12 @@ def load_schema() -> Schema:
     return SCHEMA
 
 
-class BackPackItem(Item):
+class BackpackItem(Item):
     """A class to represent an item from the client's backpack.
 
     Note
     ----
-    This is meant to be user instantiatable but only to use the following methods:
+    This is meant to be user instantiable but only to use the following methods:
 
         - :meth:`is_australium`
         - :meth:`is_craftable`
@@ -69,9 +73,8 @@ class BackPackItem(Item):
         "contains_equipped_state_v2",
         "_quality",
         "_def_index",
-        "_state",
     )
-    REPR_ATTRS = (*Item.REPR_ATTRS, "position")
+    REPR_ATTRS = (*Item.REPR_ATTRS, "position", "def_index")
 
     position: int  #: The item's position in the backpack.
 
@@ -83,13 +86,13 @@ class BackPackItem(Item):
     origin: int
     custom_name: str
     custom_desc: str
-    attribute: list[CsoEconItemAttribute]
-    interior_item: CsoEconItem
+    attribute: list[ItemAttributeProto]
+    interior_item: ItemProto
     in_use: bool
     style: int
     original_id: int
     contains_equipped_state: bool
-    equipped_state: list[CsoEconItemEquipped]
+    equipped_state: list[ItemEquippedProto]
     contains_equipped_state_v2: bool
 
     # the other attribute definitions others not a clue please feel free to PR them
@@ -97,13 +100,6 @@ class BackPackItem(Item):
     def __init__(self, item: Item, *, _state: Optional[GCState] = None):  # noqa
         utils.update_class(item, self)
         self._state = _state
-
-    def __repr__(self) -> str:
-        item_repr = super().__repr__()[6:-1]
-        resolved = [item_repr]
-        attrs = ("position",)
-        resolved.extend(f"{attr}={getattr(self, attr, None)!r}" for attr in attrs)
-        return f"<BackPackItem {' '.join(resolved)}>"
 
     @property
     def id(self) -> int:
@@ -134,15 +130,12 @@ class BackPackItem(Item):
                         self._quality = None
 
     async def use(self) -> None:
-        """|coro|
-        Use this item.
-        """
+        """Use this item."""
         msg = GCMsgProto(Language.UseItemRequest, item_id=self.id)
         await self._state.ws.send_gc_message(msg)
 
-    async def open(self, key: BackPackItem) -> None:
-        """|coro|
-        Open a crate with a ``key``.
+    async def open(self, key: BackpackItem) -> None:
+        """Open a crate with a ``key``.
 
         Parameters
         ----------
@@ -153,15 +146,12 @@ class BackPackItem(Item):
         await self._state.ws.send_gc_message(msg)
 
     async def delete(self) -> None:
-        """|coro|
-        Delete this item.
-        """
+        """Delete this item."""
         msg = GCMsg(Language.Delete, item_id=self.id)
         await self._state.ws.send_gc_message(msg)
 
-    async def wrap(self, wrapper: BackPackItem) -> None:
-        """|coro|
-        Wrap this item with the ``wrapper``.
+    async def wrap(self, wrapper: BackpackItem) -> None:
+        """Wrap this item with the ``wrapper``.
 
         Parameters
         ----------
@@ -172,15 +162,12 @@ class BackPackItem(Item):
         await self._state.ws.send_gc_message(msg)
 
     async def unwrap(self) -> None:
-        """|coro|
-        Unwrap this item.
-        """
+        """Unwrap this item."""
         msg = GCMsg(Language.GiftWrapItem, gift_id=self.id)
         await self._state.ws.send_gc_message(msg)
 
     async def equip(self, mercenary: Mercenary, slot: ItemSlot) -> None:
-        """|coro|
-        Equip this item to a mercenary.
+        """Equip this item to a mercenary.
 
         Parameters
         ----------
@@ -189,14 +176,13 @@ class BackPackItem(Item):
         slot
             The item slot to equip the item to.
         """
-        if slot >= 100:
+        if slot >= ItemSlot.Misc:
             raise ValueError("cannot use enums that aren't real item slots")
         msg = GCMsgProto(Language.AdjustItemEquippedState, item_id=self.id, new_class=mercenary, new_slot=slot)
         await self._state.ws.send_gc_message(msg)
 
     async def set_position(self, position: int) -> None:
-        """|coro|
-        Set the position for this item.
+        """Set the position for this item.
 
         Parameters
         ----------
@@ -206,15 +192,12 @@ class BackPackItem(Item):
         await self._state.backpack.set_positions([(self, position)])
 
     async def set_style(self, style: int) -> None:
-        """|coro|
-        Set the style for this item.
-        """
+        """Set the style for this item."""
         msg = GCMsg(Language.SetItemStyle, item_id=self.id, style=style)
         await self._state.ws.send_gc_message(msg)
 
     async def send_to(self, user: User) -> None:
-        """|coro|
-        Send this gift-wrapped item to another user.
+        """Send this gift-wrapped item to another user.
 
         Parameters
         ----------
@@ -326,7 +309,7 @@ class BackPackItem(Item):
         return "".join(parts)
 
     @classmethod
-    def from_sku(cls) -> BackPackItem | None:
+    def from_sku(cls) -> BackpackItem | None:
         """Construct a :class:`BackPackItem` from a sku"""
         self = cls.__new__(cls)
         self.def_index = ...
@@ -339,24 +322,13 @@ class BackPackItem(Item):
     # - from_listing?
 
 
-class BackPack(BaseInventory[BackPackItem]):
+class Backpack(BaseInventory[BackpackItem]):
     """A class to represent the client's backpack."""
 
     __slots__ = ()
 
-    def __init__(self, inventory: Inventory):  # noqa
-        utils.update_class(inventory, self)
-        self.__class__ = BackPack
-        self.items = [BackPackItem(item, _state=self._state) for item in inventory.items]  # type: ignore
-
-    async def update(self) -> None:
-        await super().update()
-        self.items = [BackPackItem(item, _state=self._state) for item in self.items]  # type: ignore
-        pass
-
-    async def set_positions(self, items_and_positions: Iterable[tuple[BackPackItem, int]]) -> None:
-        """|coro|
-        Set the positions of items in the inventory.
+    async def set_positions(self, items_and_positions: Iterable[tuple[BackpackItem, int]]) -> None:
+        """Set the positions of items in the inventory.
 
         Parameters
         ----------
@@ -370,8 +342,7 @@ class BackPack(BaseInventory[BackPackItem]):
         await self._state.ws.send_gc_message(msg)
 
     async def sort(self, type: BackpackSortType) -> None:
-        """|coro|
-        Sort this inventory.
+        """Sort this inventory.
 
         Parameters
         ----------

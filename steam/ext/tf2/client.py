@@ -6,13 +6,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional, overload
 
-from typing_extensions import Final, Literal
+from typing_extensions import Literal
 
-from ...client import Client
+from .._gc import Client as Client_
 from ...ext import commands
 from ...game import TF2, Game
 from ...gateway import Msgs
-from ...protobufs import GCMsg, GCMsgProto
+from ...protobufs import GCMsg
 from ...user import ClientUser, User
 from .enums import Language
 from .protobufs.struct_messages import CraftResponse
@@ -44,23 +44,16 @@ class TF2ClientUser(ClientUser):
         ...
 
 
-class Client(Client):
-    GAME: Final[Game] = TF2
+class Client(Client_):
+    _GAME = TF2  # type: ignore
     user: TF2ClientUser
+    _connection: GCState
 
-    def __init__(self, loop: Optional[asyncio.AbstractEventLoop] = None, **options: Any):
-        game = options.pop("game", None)
-        if game is not None:  # don't let them overwrite the main game
-            try:
-                options["games"].append(game)
-            except (TypeError, KeyError):
-                options["games"] = [game]
-        options["game"] = self.GAME
-        self._original_games: Optional[list[Game]] = options.get("games")
-        self._crafting_lock = asyncio.Lock()
+    def _get_state(self, **options: Any) -> GCState:
+        return GCState(client=self, **options)
 
-        super().__init__(loop, **options)
-        self._connection = GCState(client=self, **options)
+    def _get_gc_message(self) -> Any:
+        return False  # for now this isn't required
 
     @property
     def schema(self) -> Schema:
@@ -106,12 +99,13 @@ class Client(Client):
         """
 
         def check_gc_msg(msg: GCMsg[Any]) -> bool:
-            if isinstance(msg.body, CraftResponse):
-                if not msg.body.being_used:  # craft queue is FIFO, so this works fine
-                    msg.body.being_used = True
-                    nonlocal ids
-                    ids = list(msg.body.id_list)
-                    return True
+            if (
+                isinstance(msg.body, CraftResponse) and not msg.body.being_used
+            ):  # craft queue is FIFO, so this works fine
+                nonlocal ids
+                msg.body.being_used = True
+                ids = list(msg.body.id_list)
+                return True
 
             return False
 
@@ -138,14 +132,7 @@ class Client(Client):
 
         return await future
 
-    async def wait_for_gc_ready(self) -> None:
-        await self._connection._gc_ready.wait()
-
     # boring subclass stuff
-
-    def _handle_ready(self) -> None:
-        self._connection._unpatched_inventory = self.user.inventory
-        super()._handle_ready()
 
     async def _on_gc_connect(self) -> None:
         """

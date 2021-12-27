@@ -9,18 +9,18 @@ from typing import TYPE_CHECKING, Any, Optional
 from ... import utils
 from ...errors import HTTPException
 from ...game import TF2, Game
-from ...models import EventParser, register
+from ...models import register
 from ...protobufs import EMsg, GCMsg, GCMsgProto, MsgProto
-from ...state import ConnectionState
+from .._gc.state import GCState as GCState_
 from ...trade import Inventory
-from .backpack import BackPack, BackPackItem
+from .backpack import Backpack, BackpackItem
 from .enums import Language
-from .protobufs import base_gcmessages as cso, gcsdk_gcmessages as so, struct_messages
+from .protobufs import base, sdk, struct_messages
 
 if TYPE_CHECKING:
     from multidict import MultiDict
 
-    from ...protobufs.steammessages_clientserver_2 import CMsgGcClient
+    from ...protobufs.client_server_2 import CMsgGcClient
     from .client import Client
     from .schema import Schema
 
@@ -29,69 +29,37 @@ log = logging.getLogger(__name__)
 SCHEMA: Schema
 
 
-class GCState(ConnectionState):
-    gc_parsers: dict[Language, EventParser]
+class GCState(GCState_):
+    gc_parsers: dict[Language, Callable[..., Any]]
+    Language: Language = Language
     client: Client
 
     def __init__(self, client: Client, **kwargs: Any):
         super().__init__(client, **kwargs)
         self.schema: Schema
-        self._unpatched_inventory: Callable[[Game], Coroutine[None, None, Inventory]] = None  # type: ignore
-        self.backpack = None
         self.language: Optional[MultiDict] = None
         self.backpack_slots: Optional[int] = None
         self._is_premium: Optional[bool] = None
-        self._connected = asyncio.Event()
-        self._gc_ready = asyncio.Event()
 
         language = kwargs.get("language")
         if language is not None:
             client.set_language(language)
 
-    @register(EMsg.ClientFromGC)
-    def parse_gc_message(self, msg: MsgProto[CMsgGcClient]) -> None:
-        if msg.body.appid != self.client.GAME.id:
-            return
-
-        try:
-            language = Language(utils.clear_proto_bit(msg.body.msgtype))
-        except ValueError:
-            return log.info(
-                f"Ignoring unknown msg type: {msg.body.msgtype} ({utils.clear_proto_bit(msg.body.msgtype)})"
-            )
-
-        try:
-            msg = (
-                GCMsgProto(language, msg.body.payload)
-                if utils.is_proto(msg.body.msgtype)
-                else GCMsg(language, msg.body.payload)
-            )
-        except Exception as exc:
-            if language == language.SOCacheSubscriptionCheck:
-                # This payload is commonly malformed
-                return self.run_parser(language, None)
-            return log.error(f"Failed to deserialize message: {language!r}, {msg.body.payload!r}", exc_info=exc)
-        else:
-            log.debug(f"Socket has received GC message %r from the websocket.", msg)
-
-        self.dispatch("gc_message_receive", msg)
-        self.run_parser(language, msg)
-
     @register(Language.ClientWelcome)
     def parse_gc_client_connect(self, _) -> None:
-        if not self._connected.is_set():
+        if not self._gc_connected.is_set():
             self.dispatch("gc_connect")
-            self._connected.set()
+            self._gc_connected.set()
 
     @register(Language.ClientGoodbye)
     def parse_client_goodbye(self, _=None) -> None:
         self.dispatch("gc_disconnect")
-        self._connected.clear()
+        self._gc_connected.clear()
 
     # TODO maybe stuff for servers?
 
     @register(Language.UpdateItemSchema)
-    async def parse_schema(self, msg: GCMsgProto[cso.CMsgUpdateItemSchema]) -> None:
+    async def parse_schema(self, msg: GCMsgProto[base.UpdateItemSchema]) -> None:
         log.info(f"Getting TF2 item schema at {msg.body.items_game_url}")
         try:
             resp = await self.http._session.get(msg.body.items_game_url)
@@ -101,16 +69,15 @@ class GCState(ConnectionState):
         from . import VDF_DECODER  # circular import
 
         global SCHEMA
-
         self.schema = SCHEMA = (await utils.to_thread(VDF_DECODER, await resp.text()))["items_game"]
         log.info("Loaded schema")
 
     @register(Language.SystemMessage)
-    def parse_system_message(self, msg: GCMsgProto[cso.CMsgSystemBroadcast]) -> None:
+    def parse_system_message(self, msg: GCMsgProto[base.SystemBroadcast]) -> None:
         self.dispatch("system_message", msg.body.message)
 
     @register(Language.ClientDisplayNotification)
-    def parse_client_notification(self, msg: GCMsgProto[cso.CMsgGcClientDisplayNotification]) -> None:
+    def parse_client_notification(self, msg: GCMsgProto[base.ClientDisplayNotification]) -> None:
         if self.language is None:
             return
 
@@ -139,7 +106,7 @@ class GCState(ConnectionState):
         msg = GCMsgProto(Language.SOCacheSubscriptionRefresh, owner=self.client.user.id64)
         await self.ws.send_gc_message(msg)
 
-    def patch_user_inventory(self, new_inventory: BackPack) -> None:
+    def patch_user_inventory(self, new_inventory: Backpack) -> None:
         async def inventory(_, game: Game) -> Inventory:
             if game != TF2:
                 return await self._unpatched_inventory(game)
@@ -148,15 +115,13 @@ class GCState(ConnectionState):
 
         self.client.user.__class__.inventory = inventory
 
-    async def update_backpack(
-        self, *cso_items: cso.CsoEconItem, is_cache_subscribe: bool = False
-    ) -> list[BackPackItem]:
+    async def update_backpack(self, *cso_items: base.Item, is_cache_subscribe: bool = False) -> list[BackpackItem]:
         await self.client.wait_until_ready()
 
-        backpack = self.backpack or BackPack(await self._unpatched_inventory(TF2))
+        backpack = self.backpack or Backpack(await self._unpatched_inventory(TF2))
         item_ids = [item.asset_id for item in backpack]
 
-        if not all(cso_item.id in item_ids for cso_item in cso_items):
+        if any(cso_item.id not in item_ids for cso_item in cso_items):
             try:
                 await backpack.update()
             except HTTPException:
@@ -164,9 +129,13 @@ class GCState(ConnectionState):
 
             item_ids = [item.asset_id for item in backpack]
 
-            if not all(cso_item.id in item_ids for cso_item in cso_items):
+            if any(cso_item.id not in item_ids for cso_item in cso_items):
                 await self.restart_tf2()
-                await backpack.update()  # if the item still isn't here
+                try:
+                    await backpack.update()
+                except HTTPException:
+                    await asyncio.sleep(30)
+                    await backpack.update()  # if the item still isn't here it's bugged
 
         items = []
         for cso_item in cso_items:  # merge the two items
@@ -187,15 +156,15 @@ class GCState(ConnectionState):
         return items
 
     @register(Language.SOCacheSubscribed)
-    async def parse_cache_subscribe(self, msg: GCMsg[so.CMsgSOCacheSubscribed]) -> None:
+    async def parse_cache_subscribe(self, msg: GCMsgProto[sdk.CacheSubscribed]) -> None:
         for object in msg.body.objects:
             if object.type_id == 1:  # backpack
                 await self.update_backpack(
-                    *(cso.CsoEconItem().parse(item_data) for item_data in object.object_data),
+                    *(base.Item().parse(item_data) for item_data in object.object_data),
                     is_cache_subscribe=True,
                 )
             elif object.type_id == 7:  # account metadata
-                proto = cso.CsoEconGameAccountClient().parse(object.object_data[0])
+                proto = base.GameAccountClient().parse(object.object_data[0])
                 self._is_premium = not proto.trial_account
                 self.backpack_slots = (50 if proto.trial_account else 300) + proto.additional_backpack_slots
         if self._connected.is_set():
@@ -203,11 +172,11 @@ class GCState(ConnectionState):
             self.dispatch("gc_ready")
 
     @register(Language.SOCreate)
-    async def parse_item_add(self, msg: GCMsg[so.CMsgSOSingleObject]) -> None:
+    async def parse_item_add(self, msg: GCMsgProto[sdk.SingleObject]) -> None:
         if msg.body.type_id != 1 or not self.backpack:
             return
 
-        received_cso_item = cso.CsoEconItem().parse(msg.body.object_data)
+        received_cso_item = base.Item().parse(msg.body.object_data)
         item = await self.update_backpack(received_cso_item)
         if item:  # protect from a broken item
             self.dispatch("item_receive", item[0])
@@ -217,30 +186,30 @@ class GCState(ConnectionState):
         await self.client.change_presence(game=Game(id=0))
         self.parse_client_goodbye()
         await self.client.change_presence(game=TF2, games=self.client._original_games)
-        await self._connected.wait()
+        await self._gc_connected.wait()
 
     @register(Language.SOUpdate)
-    async def handle_so_update(self, msg: GCMsgProto[so.CMsgSOSingleObject]) -> None:
+    async def handle_so_update(self, msg: GCMsgProto[sdk.SingleObject]) -> None:
         await self._handle_so_update(msg.body)
 
     @register(Language.SOUpdateMultiple)
-    async def handle_multiple_so_update(self, msg: GCMsgProto[so.CMsgSOMultipleObjects]) -> None:
+    async def handle_multiple_so_update(self, msg: GCMsgProto[sdk.MultipleObjects]) -> None:
         for item in msg.body.objects:
             await self._handle_so_update(item)
 
-    async def _handle_so_update(self, object: so.CMsgSOSingleObject) -> None:
+    async def _handle_so_update(self, object: sdk.SingleObject) -> None:
         if object.type_id == 1:
             if not self.backpack:
                 return
 
-            cso_item = cso.CsoEconItem().parse(object.object_data)
+            cso_item = base.Item().parse(object.object_data)
 
             old_item = utils.get(self.backpack, asset_id=cso_item.id)
             new_item = (await self.update_backpack(cso_item))[0]
 
             self.dispatch("item_update", old_item, new_item)
         elif object.type_id == 7:
-            proto = cso.CsoEconGameAccountClient().parse(object.object_data)
+            proto = base.GameAccountClient().parse(object.object_data)
             backpack_slots = (50 if proto.trial_account else 300) + proto.additional_backpack_slots
             if proto.trial_account == self._is_premium or self.backpack_slots != backpack_slots:
                 self._is_premium = not proto.trial_account
@@ -250,11 +219,11 @@ class GCState(ConnectionState):
             log.debug(f"Unknown item {object!r} updated")
 
     @register(Language.SODestroy)
-    async def handle_item_remove(self, msg: GCMsgProto[so.CMsgSOSingleObject]) -> None:
+    async def handle_item_remove(self, msg: GCMsgProto[sdk.SingleObject]) -> None:
         if msg.body.type_id != 1 or not self.backpack:
             return
 
-        deleted_item = cso.CsoEconItem().parse(msg.body.object_data)
+        deleted_item = base.Item().parse(msg.body.object_data)
         item = utils.get(self.backpack, asset_id=deleted_item.id)
         for attribute_name in deleted_item.__annotations__:
             setattr(item, attribute_name, getattr(deleted_item, attribute_name))

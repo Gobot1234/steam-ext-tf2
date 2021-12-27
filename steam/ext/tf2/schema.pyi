@@ -14,7 +14,7 @@ class ColorDict(TypedDict, MultiDict):  # type: ignore  # I'm sorry my fellow te
     color_name: str
 
 
-class RaririesDict(TypedDict, MultiDict):  # type: ignore
+class RaritiesDict(TypedDict, MultiDict):  # type: ignore
     value: int
     loc_key: str
     loc_key_weapon: str
@@ -103,7 +103,7 @@ class Schema(TypedDict, MultiDict):  # type: ignore
     game_info: MultiDict[int]
     qualities: MultiDict[ValueDict]
     colors: MultiDict[ColorDict]
-    rarities: MultiDict[RaririesDict]
+    rarities: MultiDict[RaritiesDict]
     equip_regions_list: MultiDict[Bools | dict[Literal["shared"], Bools]]
     equip_conflicts: MultiDict[MultiDict[Bools]]
     quest_objective_conditions: MultiDict[Any]  # this is not really possible to type

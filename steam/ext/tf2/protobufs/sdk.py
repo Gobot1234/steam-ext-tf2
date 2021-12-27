@@ -24,97 +24,97 @@ class GCConnectionStatus(betterproto.Enum):
 
 
 @dataclass(eq=False, repr=False)
-class CMsgSOIDOwner(betterproto.Message):
+class IDOwner(betterproto.Message):
     type: int = betterproto.uint32_field(1)
     id: int = betterproto.uint64_field(2)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgSOSingleObject(betterproto.Message):
+class SingleObject(betterproto.Message):
     owner: float = betterproto.fixed64_field(1)
     type_id: int = betterproto.int32_field(2)
     object_data: bytes = betterproto.bytes_field(3)
     version: float = betterproto.fixed64_field(4)
-    owner_soid: "CMsgSOIDOwner" = betterproto.message_field(5)
+    owner_soid: "IDOwner" = betterproto.message_field(5)
     service_id: int = betterproto.uint32_field(6)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgSOMultipleObjects(betterproto.Message):
+class MultipleObjects(betterproto.Message):
     owner: float = betterproto.fixed64_field(1)
-    objects: List["CMsgSOMultipleObjectsSingleObject"] = betterproto.message_field(2)
+    objects: List["MultipleObjectsSingleObject"] = betterproto.message_field(2)
     version: float = betterproto.fixed64_field(3)
-    owner_soid: "CMsgSOIDOwner" = betterproto.message_field(6)
+    owner_soid: "IDOwner" = betterproto.message_field(6)
     service_id: int = betterproto.uint32_field(7)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgSOMultipleObjectsSingleObject(betterproto.Message):
+class MultipleObjectsSingleObject(betterproto.Message):
     type_id: int = betterproto.int32_field(1)
     object_data: bytes = betterproto.bytes_field(2)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgSOCacheSubscribed(betterproto.Message):
+class CacheSubscribed(betterproto.Message):
     owner: float = betterproto.fixed64_field(1)
-    objects: List["CMsgSOCacheSubscribedSubscribedType"] = betterproto.message_field(2)
+    objects: List["CacheSubscribedSubscribedType"] = betterproto.message_field(2)
     version: float = betterproto.fixed64_field(3)
-    owner_soid: "CMsgSOIDOwner" = betterproto.message_field(4)
+    owner_soid: "IDOwner" = betterproto.message_field(4)
     service_id: int = betterproto.uint32_field(5)
     service_list: List[int] = betterproto.uint32_field(6)
     sync_version: float = betterproto.fixed64_field(7)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgSOCacheSubscribedSubscribedType(betterproto.Message):
+class CacheSubscribedSubscribedType(betterproto.Message):
     type_id: int = betterproto.int32_field(1)
     object_data: List[bytes] = betterproto.bytes_field(2)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgSOCacheSubscribedUpToDate(betterproto.Message):
+class CacheSubscribedUpToDate(betterproto.Message):
     version: float = betterproto.fixed64_field(1)
-    owner_soid: "CMsgSOIDOwner" = betterproto.message_field(2)
+    owner_soid: "IDOwner" = betterproto.message_field(2)
     service_id: int = betterproto.uint32_field(3)
     service_list: List[int] = betterproto.uint32_field(4)
     sync_version: float = betterproto.fixed64_field(5)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgSOCacheUnsubscribed(betterproto.Message):
+class CacheUnsubscribed(betterproto.Message):
     owner: float = betterproto.fixed64_field(1)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgSOCacheSubscriptionCheck(betterproto.Message):
+class CacheSubscriptionCheck(betterproto.Message):
     owner: float = betterproto.fixed64_field(1)
     version: float = betterproto.fixed64_field(2)
-    owner_soid: "CMsgSOIDOwner" = betterproto.message_field(3)
+    owner_soid: "IDOwner" = betterproto.message_field(3)
     service_id: int = betterproto.uint32_field(4)
     service_list: List[int] = betterproto.uint32_field(5)
     sync_version: float = betterproto.fixed64_field(6)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgSOCacheSubscriptionRefresh(betterproto.Message):
+class CacheSubscriptionRefresh(betterproto.Message):
     owner: float = betterproto.fixed64_field(1)
-    owner_soid: "CMsgSOIDOwner" = betterproto.message_field(2)
+    owner_soid: "IDOwner" = betterproto.message_field(2)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgSOCacheVersion(betterproto.Message):
+class CacheVersion(betterproto.Message):
     version: float = betterproto.fixed64_field(1)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgGCMultiplexMessage(betterproto.Message):
+class CMultiplexMessage(betterproto.Message):
     msgtype: int = betterproto.uint32_field(1)
     payload: bytes = betterproto.bytes_field(2)
     steamids: List[float] = betterproto.fixed64_field(3)
 
 
 @dataclass(eq=False, repr=False)
-class CGCToGCMsgMasterAck(betterproto.Message):
+class MasterAck(betterproto.Message):
     dir_index: int = betterproto.uint32_field(1)
     machine_name: str = betterproto.string_field(3)
     process_name: str = betterproto.string_field(4)
@@ -122,71 +122,71 @@ class CGCToGCMsgMasterAck(betterproto.Message):
 
 
 @dataclass(eq=False, repr=False)
-class CGCToGCMsgMasterAckResponse(betterproto.Message):
+class MasterAckResponse(betterproto.Message):
     eresult: int = betterproto.int32_field(1)
 
 
 @dataclass(eq=False, repr=False)
-class CGCToGCMsgMasterStartupComplete(betterproto.Message):
-    gc_info: List["CGCToGCMsgMasterStartupCompleteGCInfo"] = betterproto.message_field(1)
+class MasterStartupComplete(betterproto.Message):
+    gc_info: List["MasterStartupCompleteGCInfo"] = betterproto.message_field(1)
 
 
 @dataclass(eq=False, repr=False)
-class CGCToGCMsgMasterStartupCompleteGCInfo(betterproto.Message):
+class MasterStartupCompleteGCInfo(betterproto.Message):
     dir_index: int = betterproto.uint32_field(1)
     machine_name: str = betterproto.string_field(2)
 
 
 @dataclass(eq=False, repr=False)
-class CGCToGCMsgRouted(betterproto.Message):
+class Routed(betterproto.Message):
     msg_type: int = betterproto.uint32_field(1)
     sender_id: float = betterproto.fixed64_field(2)
     net_message: bytes = betterproto.bytes_field(3)
 
 
 @dataclass(eq=False, repr=False)
-class CGCToGCMsgRoutedReply(betterproto.Message):
+class RoutedReply(betterproto.Message):
     msg_type: int = betterproto.uint32_field(1)
     net_message: bytes = betterproto.bytes_field(2)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgGCUpdateSubGCSessionInfo(betterproto.Message):
-    updates: List["CMsgGCUpdateSubGCSessionInfoCMsgUpdate"] = betterproto.message_field(1)
+class UpdateSubGCSessionInfo(betterproto.Message):
+    updates: List["UpdateSubGCSessionInfoUpdate"] = betterproto.message_field(1)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgGCUpdateSubGCSessionInfoCMsgUpdate(betterproto.Message):
+class UpdateSubGCSessionInfoUpdate(betterproto.Message):
     steamid: float = betterproto.fixed64_field(1)
     ip: float = betterproto.fixed32_field(2)
     trusted: bool = betterproto.bool_field(3)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgGCRequestSubGCSessionInfo(betterproto.Message):
+class RequestSubGCSessionInfo(betterproto.Message):
     steamid: float = betterproto.fixed64_field(1)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgGCRequestSubGCSessionInfoResponse(betterproto.Message):
+class RequestSubGCSessionInfoResponse(betterproto.Message):
     ip: float = betterproto.fixed32_field(1)
     trusted: bool = betterproto.bool_field(2)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgGCToGCIncrementRecruitmentLevel(betterproto.Message):
+class ToGCIncrementRecruitmentLevel(betterproto.Message):
     steamid: float = betterproto.fixed64_field(1)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgSOCacheHaveVersion(betterproto.Message):
-    soid: "CMsgSOIDOwner" = betterproto.message_field(1)
+class CacheHaveVersion(betterproto.Message):
+    soid: "IDOwner" = betterproto.message_field(1)
     version: float = betterproto.fixed64_field(2)
     service_id: int = betterproto.uint32_field(3)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgConnectionStatus(betterproto.Message):
+class ConnectionStatus(betterproto.Message):
     status: "GCConnectionStatus" = betterproto.enum_field(1)
     client_session_need: int = betterproto.uint32_field(2)
     queue_position: int = betterproto.int32_field(3)
@@ -196,25 +196,25 @@ class CMsgConnectionStatus(betterproto.Message):
 
 
 @dataclass(eq=False, repr=False)
-class CMsgGCToGCSOCacheSubscribe(betterproto.Message):
+class CacheSubscribe(betterproto.Message):
     subscriber: float = betterproto.fixed64_field(1)
     subscribe_to: float = betterproto.fixed64_field(2)
     sync_version: float = betterproto.fixed64_field(3)
-    have_versions: List["CMsgGCToGCSOCacheSubscribeCMsgHaveVersions"] = betterproto.message_field(4)
+    have_versions: List["CacheSubscribeHaveVersions"] = betterproto.message_field(4)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgGCToGCSOCacheSubscribeCMsgHaveVersions(betterproto.Message):
+class CacheSubscribeHaveVersions(betterproto.Message):
     service_id: int = betterproto.uint32_field(1)
     version: int = betterproto.uint64_field(2)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgGCToGCSOCacheUnsubscribe(betterproto.Message):
+class CacheUnsubscribe(betterproto.Message):
     subscriber: float = betterproto.fixed64_field(1)
     unsubscribe_from: float = betterproto.fixed64_field(2)
 
 
 @dataclass(eq=False, repr=False)
-class CMsgGCClientPing(betterproto.Message):
+class ClientPing(betterproto.Message):
     pass
