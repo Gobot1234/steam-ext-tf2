@@ -90,7 +90,7 @@ class GCState(GCState_):
         self.dispatch("display_notification", title, text)
 
     @register(Language.CraftResponse)
-    async def parse_crafting_response(self, msg: GCMsg[struct_messages.CraftResponse]) -> None:
+    async def parse_crafting_response(self, msg: GCMsgProto[struct_messages.CraftResponse]) -> None:
         # this is called after item_receive so no fetching is necessary
         if msg.body.id_list:  # only empty if crafting failed
             while True:
@@ -131,11 +131,7 @@ class GCState(GCState_):
 
             if any(cso_item.id not in item_ids for cso_item in cso_items):
                 await self.restart_tf2()
-                try:
-                    await backpack.update()
-                except HTTPException:
-                    await asyncio.sleep(30)
-                    await backpack.update()  # if the item still isn't here it's bugged
+                await backpack.update()  # if the item still isn't here something on valve's end has broken
 
         items = []
         for cso_item in cso_items:  # merge the two items
@@ -205,6 +201,8 @@ class GCState(GCState_):
             cso_item = base.Item().parse(object.object_data)
 
             old_item = utils.get(self.backpack, asset_id=cso_item.id)
+            if old_item is None:  # broken item
+                return
             new_item = (await self.update_backpack(cso_item))[0]
 
             self.dispatch("item_update", old_item, new_item)
@@ -225,6 +223,8 @@ class GCState(GCState_):
 
         deleted_item = base.Item().parse(msg.body.object_data)
         item = utils.get(self.backpack, asset_id=deleted_item.id)
+        if item is None:  # broken item
+            return
         for attribute_name in deleted_item.__annotations__:
             setattr(item, attribute_name, getattr(deleted_item, attribute_name))
         self.backpack.items.remove(item)  # type: ignore

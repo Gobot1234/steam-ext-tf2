@@ -132,17 +132,6 @@ class Client(Client_):
 
         return await future
 
-    # boring subclass stuff
-
-    async def _on_gc_connect(self) -> None:
-        """
-        await self._connection._connected.wait()
-        while True:  # this is ok-ish as gateway.KeepAliveHandler should catch any blocking and disconnects
-            await self.ws.send_gc_message(GCMsgProto(Language.ClientHello))
-            await asyncio.sleep(5)
-        """
-        # this breaks things not sure why can't be bothered finding out stuff seems to work without pinging.
-
     if TYPE_CHECKING:
 
         async def on_gc_connect(self) -> None:
