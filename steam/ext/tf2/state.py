@@ -106,26 +106,17 @@ class GCState(GCState_):
         msg = GCMsgProto(Language.SOCacheSubscriptionRefresh, owner=self.client.user.id64)
         await self.ws.send_gc_message(msg)
 
-    def patch_user_inventory(self, new_inventory: Backpack) -> None:
-        async def inventory(_, game: Game) -> Inventory:
-            if game != TF2:
-                return await self._unpatched_inventory(game)
-
-            return new_inventory
-
-        self.client.user.__class__.inventory = inventory
-
     async def update_backpack(self, *cso_items: base.Item, is_cache_subscribe: bool = False) -> list[BackpackItem]:
         await self.client.wait_until_ready()
 
-        backpack = self.backpack or Backpack(await self._unpatched_inventory(TF2))
+        backpack = self.backpack or await self.fetch_backpack(Backpack)
         item_ids = [item.asset_id for item in backpack]
 
         if any(cso_item.id not in item_ids for cso_item in cso_items):
             try:
                 await backpack.update()
             except HTTPException:
-                await asyncio.sleep(30)
+                pass
 
             item_ids = [item.asset_id for item in backpack]
 
@@ -147,7 +138,6 @@ class GCState(GCState_):
             if not is_cache_subscribe:
                 items.append(item)
 
-        self.patch_user_inventory(backpack)
         self.backpack = backpack
         return items
 
