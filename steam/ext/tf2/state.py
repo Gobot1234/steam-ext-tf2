@@ -153,7 +153,7 @@ class GCState(GCState_):
                 proto = base.GameAccountClient().parse(object.object_data[0])
                 self._is_premium = not proto.trial_account
                 self.backpack_slots = (50 if proto.trial_account else 300) + proto.additional_backpack_slots
-        if self._connected.is_set():
+        if self._gc_connected.is_set():
             self._gc_ready.set()
             self.dispatch("gc_ready")
 
