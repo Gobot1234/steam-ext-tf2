@@ -97,14 +97,10 @@ class BackpackItem(Item):
 
     # the other attribute definitions others not a clue please feel free to PR them
 
-    def __init__(self, item: Item, *, _state: Optional[GCState] = None):  # noqa
-        utils.update_class(item, self)
-        self._state = _state
-
     @property
     def id(self) -> int:
         """An alias for :attr:`asset_id`, with extra checking that you own the item."""
-        if self._state is None:
+        if self.owner != self._state.client.user:
             raise ValueError("cannot access the id of items you don't own")
         return self.asset_id
 
