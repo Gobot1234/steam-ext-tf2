@@ -238,7 +238,7 @@ class Item(betterproto.Message):
     flags: int = betterproto.uint32_field(8)
     origin: int = betterproto.uint32_field(9)
     custom_name: str = betterproto.string_field(10)
-    custom_desc: str = betterproto.string_field(11)
+    custom_description: str = betterproto.string_field(11)
     attribute: List["ItemAttribute"] = betterproto.message_field(12)
     interior_item: "Item" = betterproto.message_field(13)
     in_use: bool = betterproto.bool_field(14)

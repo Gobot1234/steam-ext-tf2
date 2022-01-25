@@ -1,4 +1,4 @@
-from ...enums import Enum, IntEnum
+from ...enums import Enum, IntEnum, Flags
 
 __all__ = (
     "GCGoodbyeReason",
@@ -8,6 +8,7 @@ __all__ = (
     "WearLevel",
     "BackpackSortType",
     "ItemFlags",
+    "ItemOrigin",
     "ItemQuality",
     "Language",
 )
@@ -102,11 +103,50 @@ class BackpackSortType(IntEnum):  # N.B only in game ones will actually work
     Slot     = 102
 
 
-class ItemFlags(IntEnum):
-    CannotTrade = 1 << 0
-    CannotCraft = 1 << 1
-    NotEcon     = 1 << 3
-    Preview     = 1 << 7
+# lifted from https://github.com/OthmanAba/TeamFortress2/blob/master/tf2_src/game/shared/econ/econ_item_constants.h
+class ItemFlags(Flags):
+    CannotTrade                                = 1 << 0
+    CannotCraft                                = 1 << 1
+    CanBeTradedByFreeAccounts                  = 1 << 2
+    NotEcon                                    = 1 << 3
+    """Items that cannot interact in the economy (can't be traded, gift-wrapped, crafted, etc.)"""
+    PurchasedAfterStoreCraftabilityChanges2012 = 1 << 4
+    """Cosmetic items coming from the store are now usable in crafting"""
+    ForceBlueTeam                              = 1 << 5
+    StoreItem                                  = 1 << 6
+    Preview                                    = 1 << 7
+
+
+class ItemOrigin(IntEnum):
+    Invalid                        = -1
+    Drop                           = 0
+    Achievement                    = 1
+    Purchased                      = 2
+    Traded                         = 3
+    Crafted                        = 4
+    StorePromotion                 = 5
+    Gifted                         = 6
+    SupportGranted                 = 7
+    FoundInCrate                   = 8
+    Earned                         = 9
+    ThirdPartyPromotion            = 10
+    GiftWrapped                    = 11
+    HalloweenDrop                  = 12
+    PackageItem                    = 13
+    Foreign                        = 14
+    CDKey                          = 15
+    CollectionReward               = 16
+    PreviewItem                    = 17
+    SteamWorkshopContribution      = 18
+    PeriodicScoreReward            = 19
+    MvMMissionCompletionReward     = 20
+    MvMSquadSurplusReward          = 21
+    RecipeOutput                   = 22
+    QuestDrop                      = 23
+    QuestLoanerItem                = 24
+    TradeUp                        = 25
+    ViralCompetitiveBetaPassSpread = 26
+    Max                            = 27
 
 
 class ItemQuality(IntEnum):

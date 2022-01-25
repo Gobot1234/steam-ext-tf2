@@ -10,7 +10,7 @@ from ... import utils
 from ...protobufs import GCMsg, GCMsgProto
 from ...trade import BaseInventory, Inventory, Item
 from ...user import User
-from .enums import BackpackSortType, ItemQuality, ItemSlot, Language, Mercenary, WearLevel
+from .enums import BackpackSortType, ItemFlags, ItemOrigin, ItemQuality, ItemSlot, Language, Mercenary, WearLevel
 
 if TYPE_CHECKING:
     from .protobufs.base import (
@@ -62,7 +62,7 @@ class BackpackItem(Item):
         "flags",
         "origin",
         "custom_name",
-        "custom_desc",
+        "custom_description",
         "attribute",
         "interior_item",
         "in_use",
@@ -82,10 +82,10 @@ class BackpackItem(Item):
     inventory: int  #: The attribute the :attr:`position` is calculated from.
     quantity: int  #: I think this should be the same as :attr:`amount`.
     level: int  #: The item's level.
-    flags: int
-    origin: int
+    flags: ItemFlags  #: The item's flags.
+    origin: ItemOrigin  #: The item's origin.
     custom_name: str
-    custom_desc: str
+    custom_description: str
     attribute: list[ItemAttributeProto]
     interior_item: ItemProto
     in_use: bool

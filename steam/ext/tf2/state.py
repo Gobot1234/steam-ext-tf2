@@ -10,17 +10,15 @@ from ... import utils
 from ...errors import HTTPException
 from ...game import TF2, Game
 from ...models import register
-from ...protobufs import EMsg, GCMsg, GCMsgProto, MsgProto
+from ...protobufs import GCMsgProto
 from .._gc.state import GCState as GCState_
-from ...trade import Inventory
-from .backpack import Backpack, BackpackItem
-from .enums import Language
+from .backpack import Backpack
+from .enums import ItemFlags, ItemOrigin, Language
 from .protobufs import base, sdk, struct_messages
 
 if TYPE_CHECKING:
     from multidict import MultiDict
 
-    from ...protobufs.client_server_2 import CMsgGcClient
     from .client import Client
     from .schema import Schema
 
@@ -31,8 +29,9 @@ SCHEMA: Schema
 
 class GCState(GCState_):
     gc_parsers: dict[Language, Callable[..., Any]]
-    Language: Language = Language
+    Language = Language
     client: Client
+    backpack: Backpack
 
     def __init__(self, client: Client, **kwargs: Any):
         super().__init__(client, **kwargs)
@@ -106,7 +105,7 @@ class GCState(GCState_):
         msg = GCMsgProto(Language.SOCacheSubscriptionRefresh, owner=self.client.user.id64)
         await self.ws.send_gc_message(msg)
 
-    async def update_backpack(self, *cso_items: base.Item, is_cache_subscribe: bool = False) -> list[BackpackItem]:
+    async def update_backpack(self, *cso_items: base.Item, is_cache_subscribe: bool = False) -> None:
         await self.client.wait_until_ready()
 
         backpack = self.backpack or await self.fetch_backpack(Backpack)
@@ -124,7 +123,6 @@ class GCState(GCState_):
                 await self.restart_tf2()
                 await backpack.update()  # if the item still isn't here something on valve's end has broken
 
-        items = []
         for cso_item in cso_items:  # merge the two items
             item = utils.get(backpack, asset_id=cso_item.id)
             if item is None:
@@ -134,12 +132,10 @@ class GCState(GCState_):
 
             is_new = is_cache_subscribe and (cso_item.inventory >> 30) & 1
             item.position = 0 if is_new else cso_item.inventory & 0xFFFF
-
-            if not is_cache_subscribe:
-                items.append(item)
+            item.flags = ItemFlags.try_value(cso_item.flags)
+            item.origin = ItemOrigin.try_value(cso_item.origin)
 
         self.backpack = backpack
-        return items
 
     @register(Language.SOCacheSubscribed)
     async def parse_cache_subscribe(self, msg: GCMsgProto[sdk.CacheSubscribed]) -> None:
@@ -162,10 +158,11 @@ class GCState(GCState_):
         if msg.body.type_id != 1 or not self.backpack:
             return
 
-        received_cso_item = base.Item().parse(msg.body.object_data)
-        item = await self.update_backpack(received_cso_item)
-        if item:  # protect from a broken item
-            self.dispatch("item_receive", item[0])
+        cso_item = base.Item().parse(msg.body.object_data)
+        await self.update_backpack(cso_item)
+        item = utils.get(self.backpack, id=cso_item.id)
+        if item is not None:  # protect from a broken item
+            self.dispatch("item_receive", item)
 
     @utils.call_once
     async def restart_tf2(self) -> None:
@@ -181,7 +178,7 @@ class GCState(GCState_):
     @register(Language.SOUpdateMultiple)
     async def handle_multiple_so_update(self, msg: GCMsgProto[sdk.MultipleObjects]) -> None:
         for item in msg.body.objects:
-            await self._handle_so_update(item)
+            await self._handle_so_update(item)  # type: ignore  # TODO use a Protocol here
 
     async def _handle_so_update(self, object: sdk.SingleObject) -> None:
         if object.type_id == 1:
@@ -193,7 +190,10 @@ class GCState(GCState_):
             old_item = utils.get(self.backpack, asset_id=cso_item.id)
             if old_item is None:  # broken item
                 return
-            new_item = (await self.update_backpack(cso_item))[0]
+            await self.update_backpack(cso_item)
+            new_item = utils.get(self.backpack, id=cso_item.id)
+            if new_item is None:
+                return
 
             self.dispatch("item_update", old_item, new_item)
         elif object.type_id == 7:
