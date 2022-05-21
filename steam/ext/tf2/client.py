@@ -9,11 +9,12 @@ from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional, overload
 from typing_extensions import Literal
 
 from .._gc import Client as Client_
+from .._gc.client import ClientUser as ClientUser_
 from ...ext import commands
 from ...game import TF2, Game
 from ...gateway import Msgs
 from ...protobufs import GCMsg
-from ...user import ClientUser, User
+from ...user import User
 from .enums import Language
 from .protobufs.struct_messages import CraftResponse
 from .state import GCState
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
     from ...message import Message
     from ...trade import Inventory, TradeOffer
     from ..commands import Context
-    from .backpack import BackPack, BackPackItem, Schema
+    from .backpack import Backpack, BackpackItem, Schema
 
 __all__ = (
     "Client",
@@ -34,9 +35,9 @@ __all__ = (
 )
 
 
-class TF2ClientUser(ClientUser):
+class TF2ClientUser(ClientUser_):
     @overload
-    async def inventory(self, game: Literal[TF2]) -> BackPack:
+    async def inventory(self, game: Literal[TF2]) -> Backpack:
         ...
 
     @overload
@@ -46,6 +47,7 @@ class TF2ClientUser(ClientUser):
 
 class Client(Client_):
     _GAME = TF2  # type: ignore
+    _ClientUserCls = TF2ClientUser
     user: TF2ClientUser
     _connection: GCState
 
@@ -81,7 +83,7 @@ class Client(Client_):
         file = Path(file).resolve()
         self._connection.language = VDF_DECODER(file.read_text())
 
-    async def craft(self, items: Iterable[BackPackItem], recipe: int = -2) -> Optional[list[BackPackItem]]:
+    async def craft(self, items: Iterable[BackpackItem], recipe: int = -2) -> Optional[list[BackpackItem]]:
         """|coro|
         Craft a set of items together with an optional recipe.
 
@@ -109,7 +111,7 @@ class Client(Client_):
 
             return False
 
-        def check_crafting_complete(items: list[BackPackItem]) -> bool:
+        def check_crafting_complete(items: list[BackpackItem]) -> bool:
             return [item.asset_id for item in items] == ids
 
         ids = []
@@ -173,45 +175,45 @@ class Client(Client_):
                 - :attr:`backpack_slots`
             """
 
-        async def on_crafting_complete(self, items: list[tf2.BackPackItem]) -> None:
+        async def on_crafting_complete(self, items: list[tf2.BackpackItem]) -> None:
             """|coro|
             Called after a crafting recipe is completed.
 
             Parameters
             ----------
-            items: list[:class:`tf2.BackPackItem`]
+            items: list[:class:`tf2.BackpackItem`]
                 The items the craft request created.
             """
 
-        async def on_item_receive(self, item: tf2.BackPackItem) -> None:
+        async def on_item_receive(self, item: tf2.BackpackItem) -> None:
             """|coro|
             Called when the client receives an item.
 
             Parameters
             ----------
-            item: :class:`tf2.BackPackItem`
+            item: :class:`tf2.BackpackItem`
                 The received item.
             """
 
-        async def on_item_remove(self, item: tf2.BackPackItem) -> None:
+        async def on_item_remove(self, item: tf2.BackpackItem) -> None:
             """|coro|
             Called when the client has an item removed from its backpack.
 
             Parameters
             ----------
-            item: :class:`tf2.BackPackItem`
+            item: :class:`tf2.BackpackItem`
                 The removed item.
             """
 
-        async def on_item_update(self, before: tf2.BackPackItem, after: tf2.BackPackItem) -> None:
+        async def on_item_update(self, before: tf2.BackpackItem, after: tf2.BackpackItem) -> None:
             """|coro|
             Called when the client has an item in its backpack updated.
 
             Parameters
             ----------
-            before: :class:`tf2.BackPackItem`
+            before: :class:`tf2.BackpackItem`
                 The item before being updated.
-            after: :class:`tf2.BackPackItem`
+            after: :class:`tf2.BackpackItem`
                 The item now.
             """
 
@@ -341,9 +343,9 @@ class Client(Client_):
             self,
             event: Literal["crafting_complete"],
             *,
-            check: Callable[[list[tf2.BackPackItem]], bool] = ...,
+            check: Callable[[list[tf2.BackpackItem]], bool] = ...,
             timeout: Optional[float] = ...,
-        ) -> list[tf2.BackPackItem]:
+        ) -> list[tf2.BackpackItem]:
             ...
 
         @overload
@@ -355,9 +357,9 @@ class Client(Client_):
                 "item_update",
             ],
             *,
-            check: Callable[[BackPackItem], bool] = ...,
+            check: Callable[[BackpackItem], bool] = ...,
             timeout: Optional[float] = ...,
-        ) -> BackPackItem:
+        ) -> BackpackItem:
             ...
 
 
@@ -520,9 +522,9 @@ class Bot(commands.Bot, Client):
             self,
             event: Literal["crafting_complete"],
             *,
-            check: Callable[[list[tf2.BackPackItem]], bool] = ...,
+            check: Callable[[list[tf2.BackpackItem]], bool] = ...,
             timeout: Optional[float] = ...,
-        ) -> list[tf2.BackPackItem]:
+        ) -> list[tf2.BackpackItem]:
             ...
 
         @overload
@@ -534,7 +536,7 @@ class Bot(commands.Bot, Client):
                 "item_update",
             ],
             *,
-            check: Callable[[BackPackItem], bool] = ...,
+            check: Callable[[BackpackItem], bool] = ...,
             timeout: Optional[float] = ...,
-        ) -> BackPackItem:
+        ) -> BackpackItem:
             ...
