@@ -8,13 +8,14 @@ from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional, overload
 
 from typing_extensions import Literal
 
-from .._gc import Client as Client_
-from .._gc.client import ClientUser as ClientUser_
+from ..._const import VDF_LOADS
 from ...ext import commands
 from ...game import TF2, Game
 from ...gateway import Msgs
 from ...protobufs import GCMsg
 from ...user import User
+from .._gc import Client as Client_
+from .._gc.client import ClientUser as ClientUser_
 from .enums import Language
 from .protobufs.struct_messages import CraftResponse
 from .state import GCState
@@ -36,13 +37,15 @@ __all__ = (
 
 
 class TF2ClientUser(ClientUser_):
-    @overload
-    async def inventory(self, game: Literal[TF2]) -> Backpack:
-        ...
+    if TYPE_CHECKING:
 
-    @overload
-    async def inventory(self, game: Game) -> Inventory:
-        ...
+        @overload
+        async def inventory(self, game: Literal[TF2]) -> Backpack:
+            ...
+
+        @overload
+        async def inventory(self, game: Game) -> Inventory:
+            ...
 
 
 class Client(Client_):
@@ -59,7 +62,7 @@ class Client(Client_):
 
     @property
     def schema(self) -> Schema:
-        """Optional[:class:`multidict.MultiDict`]: TF2's item schema. ``None`` if the user isn't ready."""
+        """TF2's item schema. ``None`` if the user isn't ready."""
         return self._connection.schema
 
     @property
@@ -68,9 +71,7 @@ class Client(Client_):
         return self._connection.backpack_slots
 
     def is_premium(self) -> bool:
-        """
-        Optional[:class:`bool`]: Whether or not the client's account has TF2 premium. ``None`` if the user isn't ready.
-        """
+        """Whether or not the client's account has TF2 premium. ``None`` if the user isn't ready."""
         return self._connection._is_premium  # type: ignore
 
     def set_language(self, file: os.PathLike[str]) -> None:
@@ -78,10 +79,8 @@ class Client(Client_):
 
         This isn't necessary in most situations.
         """
-        from . import VDF_DECODER
-
         file = Path(file).resolve()
-        self._connection.language = VDF_DECODER(file.read_text())
+        self._connection.language = VDF_LOADS(file.read_text())
 
     async def craft(self, items: Iterable[BackpackItem], recipe: int = -2) -> Optional[list[BackpackItem]]:
         """|coro|
@@ -95,8 +94,8 @@ class Client(Client_):
             The recipe to craft them with default is -2 (wildcard). Setting for metal crafts isn't required. See
             https://github.com/DontAskM8/TF2-Crafting-Recipe/blob/master/craftRecipe.json for other recipe details.
 
-        Return
-        ------
+        Returns
+        -------
         The crafted items, ``None`` if crafting failed.
         """
 
@@ -128,6 +127,7 @@ class Client(Client_):
         else:
             recipe_id = resp.body.recipe_id
 
+        print("got recipe_id", recipe_id)
         if recipe_id == -1:
             future.cancel()  # cancel the future (it's cleaned from _listeners up by dispatch)
             return None

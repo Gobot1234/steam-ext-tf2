@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Optional
 
 from ... import utils
+from ..._const import VDF_LOADS
 from ...errors import HTTPException
 from ...game import TF2, Game
 from ...models import register
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from multidict import MultiDict
 
     from .client import Client
-    from .schema import Schema
+    from .types.schema import Schema
 
 
 log = logging.getLogger(__name__)
@@ -32,6 +32,7 @@ class GCState(GCState_):
     Language = Language
     client: Client
     backpack: Backpack
+    crafted_items: set[tuple[int, ...]]
 
     def __init__(self, client: Client, **kwargs: Any):
         super().__init__(client, **kwargs)
@@ -39,6 +40,7 @@ class GCState(GCState_):
         self.language: Optional[MultiDict] = None
         self.backpack_slots: Optional[int] = None
         self._is_premium: Optional[bool] = None
+        self.crafted_items: set[tuple[int, ...]] = set()
 
         language = kwargs.get("language")
         if language is not None:
@@ -65,10 +67,8 @@ class GCState(GCState_):
         except Exception as exc:
             return log.error("Failed to get item schema", exc_info=exc)
 
-        from . import VDF_DECODER  # circular import
-
         global SCHEMA
-        self.schema = SCHEMA = (await utils.to_thread(VDF_DECODER, await resp.text()))["items_game"]
+        self.schema = SCHEMA = (await utils.to_thread(VDF_LOADS, await resp.text()))["items_game"]  # type: ignore
         log.info("Loaded schema")
 
     @register(Language.SystemMessage)
@@ -92,12 +92,7 @@ class GCState(GCState_):
     async def parse_crafting_response(self, msg: GCMsgProto[struct_messages.CraftResponse]) -> None:
         # this is called after item_receive so no fetching is necessary
         if msg.body.id_list:  # only empty if crafting failed
-            while True:
-                items = [utils.get(self.backpack, asset_id=item_id) for item_id in msg.body.id_list]
-                if all(items):
-                    break
-                await asyncio.sleep(0)  # yield back to the even loop to let item_receive receive run
-            self.dispatch("crafting_complete", items)
+            self.crafted_items.add(msg.body.id_list)
 
     @register(Language.SOCacheSubscriptionCheck)
     async def parse_cache_check(self, _=None) -> None:
@@ -161,8 +156,15 @@ class GCState(GCState_):
         cso_item = base.Item().parse(msg.body.object_data)
         await self.update_backpack(cso_item)
         item = utils.get(self.backpack, id=cso_item.id)
-        if item is not None:  # protect from a broken item
-            self.dispatch("item_receive", item)
+        if item is None:  # protect from a broken item
+            return
+        self.dispatch("item_receive", item)
+
+        for item_set in self.crafted_items.copy():
+            items = [utils.get(self.backpack, asset_id=item_id) for item_id in item_set]
+            if all(items):
+                self.dispatch("crafting_complete", items)
+                self.crafted_items.discard(item_set)
 
     @utils.call_once
     async def restart_tf2(self) -> None:

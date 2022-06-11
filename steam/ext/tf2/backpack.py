@@ -18,8 +18,7 @@ if TYPE_CHECKING:
         ItemAttribute as ItemAttributeProto,
         ItemEquipped as ItemEquippedProto,
     )
-    from .schema import Schema
-    from .state import GCState
+    from .types.schema import Schema
 
 __all__ = (
     "BackpackItem",
