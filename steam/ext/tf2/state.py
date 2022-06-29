@@ -104,7 +104,7 @@ class GCState(GCState_):
         await self.client.wait_until_ready()
 
         backpack = self.backpack or await self.fetch_backpack(Backpack)
-        item_ids = [item.asset_id for item in backpack]
+        item_ids = [item.id for item in backpack]
 
         if any(cso_item.id not in item_ids for cso_item in cso_items):
             try:
@@ -112,14 +112,14 @@ class GCState(GCState_):
             except HTTPException:
                 pass
 
-            item_ids = [item.asset_id for item in backpack]
+            item_ids = [item.id for item in backpack]
 
             if any(cso_item.id not in item_ids for cso_item in cso_items):
                 await self.restart_tf2()
                 await backpack.update()  # if the item still isn't here something on valve's end has broken
 
         for cso_item in cso_items:  # merge the two items
-            item = utils.get(backpack, asset_id=cso_item.id)
+            item = utils.get(backpack, id=cso_item.id)
             if item is None:
                 continue  # the item has been removed (gc sometimes sends you items that you have crafted/deleted)
             for attribute_name in cso_item.__annotations__:
@@ -161,7 +161,7 @@ class GCState(GCState_):
         self.dispatch("item_receive", item)
 
         for item_set in self.crafted_items.copy():
-            items = [utils.get(self.backpack, asset_id=item_id) for item_id in item_set]
+            items = [utils.get(self.backpack, id=item_id) for item_id in item_set]
             if all(items):
                 self.dispatch("crafting_complete", items)
                 self.crafted_items.discard(item_set)
@@ -189,7 +189,7 @@ class GCState(GCState_):
 
             cso_item = base.Item().parse(object.object_data)
 
-            old_item = utils.get(self.backpack, asset_id=cso_item.id)
+            old_item = utils.get(self.backpack, id=cso_item.id)
             if old_item is None:  # broken item
                 return
             await self.update_backpack(cso_item)
@@ -214,7 +214,7 @@ class GCState(GCState_):
             return
 
         deleted_item = base.Item().parse(msg.body.object_data)
-        item = utils.get(self.backpack, asset_id=deleted_item.id)
+        item = utils.get(self.backpack, id=deleted_item.id)
         if item is None:  # broken item
             return
         for attribute_name in deleted_item.__annotations__:

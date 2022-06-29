@@ -111,7 +111,7 @@ class Client(Client_):
             return False
 
         def check_crafting_complete(items: list[BackpackItem]) -> bool:
-            return [item.asset_id for item in items] == ids
+            return [item.id for item in items] == ids
 
         ids = []
         future = self.loop.create_future()
