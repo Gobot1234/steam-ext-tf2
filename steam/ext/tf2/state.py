@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from ... import utils
 from ..._const import VDF_LOADS
@@ -12,7 +12,7 @@ from ...game import TF2, Game
 from ...models import register
 from ...protobufs import GCMsgProto
 from .._gc.state import GCState as GCState_
-from .backpack import Backpack
+from .backpack import SCHEMA, Backpack
 from .enums import ItemFlags, ItemOrigin, Language
 from .protobufs import base, sdk, struct_messages
 
@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 
 
 log = logging.getLogger(__name__)
-SCHEMA: Schema
 
 
 class GCState(GCState_):
@@ -32,7 +31,6 @@ class GCState(GCState_):
     Language = Language
     client: Client
     backpack: Backpack
-    crafted_items: set[tuple[int, ...]]
 
     def __init__(self, client: Client, **kwargs: Any):
         super().__init__(client, **kwargs)
@@ -40,7 +38,7 @@ class GCState(GCState_):
         self.language: Optional[MultiDict] = None
         self.backpack_slots: Optional[int] = None
         self._is_premium: Optional[bool] = None
-        self.crafted_items: set[tuple[int, ...]] = set()
+        self.crafted_items = set[tuple[int, ...]]()
 
         language = kwargs.get("language")
         if language is not None:
@@ -67,8 +65,9 @@ class GCState(GCState_):
         except Exception as exc:
             return log.error("Failed to get item schema", exc_info=exc)
 
-        global SCHEMA
-        self.schema = SCHEMA = (await utils.to_thread(VDF_LOADS, await resp.text()))["items_game"]  # type: ignore
+
+        self.schema = cast(Schema, (await utils.to_thread(VDF_LOADS, await resp.text()))["items_game"])
+        SCHEMA.set(self.schema)
         log.info("Loaded schema")
 
     @register(Language.SystemMessage)

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from contextvars import ContextVar
 
 import re
 from collections.abc import Iterable
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
         ItemAttribute as ItemAttributeProto,
         ItemEquipped as ItemEquippedProto,
     )
+    from .state import GCState
     from .types.schema import Schema
 
 __all__ = (
@@ -27,14 +29,7 @@ __all__ = (
 
 
 WEAR_PARSER = re.compile("|".join(re.escape(wear.name) for wear in WearLevel))
-
-
-def load_schema() -> Schema:
-    try:
-        from .state import SCHEMA
-    except AttributeError:  # I don't really know how you can feasibly get this but ¯\_(ツ)_/¯
-        raise RuntimeError("Cannot get schema when not logged into GC")
-    return SCHEMA
+SCHEMA = ContextVar[Schema]("schema")
 
 
 class BackpackItem(Item):
@@ -74,6 +69,7 @@ class BackpackItem(Item):
         "_def_index",
     )
     REPR_ATTRS = (*Item.REPR_ATTRS, "position", "def_index")
+    _state: GCState
 
     position: int  #: The item's position in the backpack.
 
@@ -106,7 +102,7 @@ class BackpackItem(Item):
         if isinstance(value, int):
             self._quality = ItemQuality.try_value(value)
         else:
-            for tag in self.tags:
+            for tag in self.tags or ():
                 if tag.get("category") == "Quality":
                     try:
                         self._quality = ItemQuality[tag["internal_name"].title()]
@@ -238,11 +234,12 @@ class BackpackItem(Item):
         try:
             return self._def_index
         except AttributeError:
-            schema = load_schema()
+            schema = SCHEMA.get()
             for def_index, item in schema["items"].items():
                 if item.get("name") == self.name:
-                    self._def_index = def_index
-                    return def_index
+                    self._def_index = int(def_index)
+                    return self._def_index
+            raise RuntimeError(f"Could not find def index for {self.name}")
 
     @def_index.setter
     def def_index(self, value: int) -> None:
