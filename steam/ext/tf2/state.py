@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Optional, cast
 from ... import utils
 from ..._const import VDF_LOADS
 from ...errors import HTTPException
-from ...game import TF2, Game
+from ...app import TF2, App
 from ...models import register
 from ...protobufs import GCMsgProto
 from .._gc.state import GCState as GCState_
@@ -167,9 +167,9 @@ class GCState(GCState_):
 
     @utils.call_once
     async def restart_tf2(self) -> None:
-        await self.client.change_presence(game=Game(id=0))
+        await self.client.change_presence(app=App(id=0))
         self.parse_client_goodbye()
-        await self.client.change_presence(game=TF2, games=self.client._original_games)
+        await self.client.change_presence(app=TF2, apps=self.client._original_apps)
         await self._gc_connected.wait()
 
     @register(Language.SOUpdate)

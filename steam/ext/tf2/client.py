@@ -10,7 +10,7 @@ from typing_extensions import Literal
 
 from ..._const import VDF_LOADS
 from ...ext import commands
-from ...game import TF2, Game
+from ...app import TF2, App
 from ...gateway import Msgs
 from ...protobufs import GCMsg
 from ...user import User
@@ -23,6 +23,7 @@ from .state import GCState
 if TYPE_CHECKING:
     from steam.ext import tf2
 
+    from ...enums import Language
     from ...comment import Comment
     from ...invite import ClanInvite, UserInvite
     from ...message import Message
@@ -40,16 +41,16 @@ class TF2ClientUser(ClientUser_):
     if TYPE_CHECKING:
 
         @overload
-        async def inventory(self, game: Literal[TF2]) -> Backpack:
+        async def inventory(self, app: Literal[TF2], *, langauge: Language | None = None) -> Backpack:
             ...
 
         @overload
-        async def inventory(self, game: Game) -> Inventory:
+        async def inventory(self, app: App, *, langauge: Language | None = None) -> Inventory:
             ...
 
 
 class Client(Client_):
-    _GAME = TF2  # type: ignore
+    _APP = TF2  # type: ignore
     _ClientUserCls = TF2ClientUser
     user: TF2ClientUser
     _connection: GCState
