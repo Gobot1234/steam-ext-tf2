@@ -29,7 +29,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-steamio = {git="https://github.com/Gobot1234/steam.py", rev="c4feecfe09abdf59732fc9a7e87ac873181e658c"}
+steamio = {git="https://github.com/Gobot1234/steam.py", rev="main"}
 
 [tool.poetry.dev-dependencies]
 black = "^21.12b0"
