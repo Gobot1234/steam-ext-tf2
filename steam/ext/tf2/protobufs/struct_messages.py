@@ -1,13 +1,14 @@
 from __future__ import annotations
+
 from typing_extensions import Self
 
-from ....protobufs.struct_messages import StructMessage
+from ....protobufs.msg import GCMessage
 from ....utils import StructIO
+from ..enums import Language
 
 # some custom messages to make things a lot easier decoding/encoding wise
 
-
-class CraftRequest(StructMessage):
+class CraftRequest(GCMessage, msg=Language.Craft):
     recipe: int
     items: list[int]
 
@@ -20,7 +21,7 @@ class CraftRequest(StructMessage):
             return io.buffer
 
 
-class CraftResponse(StructMessage):
+class CraftResponse(GCMessage, msg=Language.CraftResponse):
     recipe_id: int
     id_list: tuple[int, ...]
     being_used: bool
@@ -36,7 +37,7 @@ class CraftResponse(StructMessage):
         return self
 
 
-class SetItemStyleRequest(StructMessage):
+class SetItemStyleRequest(GCMessage, msg=Language.SetItemStyle):
     item_id: int
     style: int
 
@@ -48,29 +49,29 @@ class SetItemStyleRequest(StructMessage):
             return io.buffer
 
 
-class DeleteItemRequest(StructMessage):
+class DeleteItemRequest(GCMessage, msg=Language.Delete):
     item_id: int
 
 
-class WrapItemRequest(StructMessage):
+class WrapItemRequest(GCMessage, msg=Language.GiftWrapItem):
     wrapping_paper_id: int
     item_id: int
 
 
-class UnwrapItemRequest(StructMessage):
+class UnwrapItemRequest(GCMessage, msg=Language.UnwrapGiftRequest):
     gift_id: int
 
 
-class DeliverGiftRequest(StructMessage):
+class DeliverGiftRequest(GCMessage, msg=Language.DeliverGift):
     user_id64: int
     gift_id: int
 
 
-class OpenCrateRequest(StructMessage):
+class OpenCrateRequest(GCMessage, msg=Language.UnlockCrate):
     key_id: int
     crate_id: int
 
 
-class CacheSubscribedCheck(StructMessage):
+class CacheSubscribedCheck(GCMessage, msg=Language.SOCacheSubscriptionCheck):
     def parse(self, data: bytes) -> Self:
         return self  # IDK how to decode this but I don't want to have to special case this

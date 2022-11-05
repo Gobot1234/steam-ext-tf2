@@ -7,6 +7,9 @@ from typing import List
 
 import betterproto
 
+from ....protobufs.msg import GCProtobufMessage
+from ..enums import Language
+
 
 class PartnerAccountType(betterproto.Enum):
     NONE = 0
@@ -29,8 +32,28 @@ class IDOwner(betterproto.Message):
     id: int = betterproto.uint64_field(2)
 
 
-@dataclass(eq=False, repr=False)
-class SingleObject(betterproto.Message):
+class SOUpdate(GCProtobufMessage, msg=Language.SOUpdate):
+    owner: float = betterproto.fixed64_field(1)
+    type_id: int = betterproto.int32_field(2)
+    object_data: bytes = betterproto.bytes_field(3)
+    version: float = betterproto.fixed64_field(4)
+    owner_soid: "IDOwner" = betterproto.message_field(5)
+    service_id: int = betterproto.uint32_field(6)
+class SOCreate(GCProtobufMessage, msg=Language.SOCreate):
+    owner: float = betterproto.fixed64_field(1)
+    type_id: int = betterproto.int32_field(2)
+    object_data: bytes = betterproto.bytes_field(3)
+    version: float = betterproto.fixed64_field(4)
+    owner_soid: "IDOwner" = betterproto.message_field(5)
+    service_id: int = betterproto.uint32_field(6)
+class SODestroy(GCProtobufMessage, msg=Language.SODestroy):
+    owner: float = betterproto.fixed64_field(1)
+    type_id: int = betterproto.int32_field(2)
+    object_data: bytes = betterproto.bytes_field(3)
+    version: float = betterproto.fixed64_field(4)
+    owner_soid: "IDOwner" = betterproto.message_field(5)
+    service_id: int = betterproto.uint32_field(6)
+class GameServerResetIdentityResponse(GCProtobufMessage, msg=Language.GameServerResetIdentityResponse):
     owner: float = betterproto.fixed64_field(1)
     type_id: int = betterproto.int32_field(2)
     object_data: bytes = betterproto.bytes_field(3)
@@ -39,8 +62,8 @@ class SingleObject(betterproto.Message):
     service_id: int = betterproto.uint32_field(6)
 
 
-@dataclass(eq=False, repr=False)
-class MultipleObjects(betterproto.Message):
+
+class MultipleObjects(GCProtobufMessage, msg=Language.SOUpdateMultiple):
     owner: float = betterproto.fixed64_field(1)
     objects: List["MultipleObjectsSingleObject"] = betterproto.message_field(2)
     version: float = betterproto.fixed64_field(3)
@@ -54,8 +77,7 @@ class MultipleObjectsSingleObject(betterproto.Message):
     object_data: bytes = betterproto.bytes_field(2)
 
 
-@dataclass(eq=False, repr=False)
-class CacheSubscribed(betterproto.Message):
+class CacheSubscribed(GCProtobufMessage, msg=Language.SOCacheSubscribed):
     owner: float = betterproto.fixed64_field(1)
     objects: List["CacheSubscribedSubscribedType"] = betterproto.message_field(2)
     version: float = betterproto.fixed64_field(3)
@@ -95,8 +117,7 @@ class CacheSubscriptionCheck(betterproto.Message):
     sync_version: float = betterproto.fixed64_field(6)
 
 
-@dataclass(eq=False, repr=False)
-class CacheSubscriptionRefresh(betterproto.Message):
+class CacheSubscriptionRefresh(GCProtobufMessage, msg=Language.SOCacheSubscriptionRefresh):
     owner: float = betterproto.fixed64_field(1)
     owner_soid: "IDOwner" = betterproto.message_field(2)
 

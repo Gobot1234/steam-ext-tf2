@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Any, Optional, cast
 
 from ... import utils
 from ..._const import VDF_LOADS
-from ...errors import HTTPException
 from ...app import TF2, App
+from ...errors import HTTPException
 from ...models import register
 from ...protobufs import GCMsgProto
 from .._gc.state import GCState as GCState_
@@ -58,10 +58,10 @@ class GCState(GCState_):
     # TODO maybe stuff for servers?
 
     @register(Language.UpdateItemSchema)
-    async def parse_schema(self, msg: GCMsgProto[base.UpdateItemSchema]) -> None:
-        log.info(f"Getting TF2 item schema at {msg.body.items_game_url}")
+    async def parse_schema(self, msg: base.UpdateItemSchema) -> None:
+        log.info(f"Getting TF2 item schema at {msg.items_game_url}")
         try:
-            resp = await self.http._session.get(msg.body.items_game_url)
+            resp = await self.http._session.get(msg.items_game_url)
         except Exception as exc:
             return log.error("Failed to get item schema", exc_info=exc)
 
@@ -71,27 +71,27 @@ class GCState(GCState_):
         log.info("Loaded schema")
 
     @register(Language.SystemMessage)
-    def parse_system_message(self, msg: GCMsgProto[base.SystemBroadcast]) -> None:
-        self.dispatch("system_message", msg.body.message)
+    def parse_system_message(self, msg: base.SystemBroadcast) -> None:
+        self.dispatch("system_message", msg.message)
 
     @register(Language.ClientDisplayNotification)
-    def parse_client_notification(self, msg: GCMsgProto[base.ClientDisplayNotification]) -> None:
+    def parse_client_notification(self, msg: base.ClientDisplayNotification) -> None:
         if self.language is None:
             return
 
-        title = self.language[msg.body.notification_title_localization_key[1:]]
-        text = re.sub(r"[\u0001|\u0002]", "", self.language[msg.body.notification_body_localization_key[1:]])
-        for i, replacement in enumerate(msg.body.body_substring_values):
+        title = self.language[msg.notification_title_localization_key[1:]]
+        text = re.sub(r"[\u0001|\u0002]", "", self.language[msg.notification_body_localization_key[1:]])
+        for i, replacement in enumerate(msg.body_substring_values):
             if replacement[0] == "#":
                 replacement = self.language[replacement[1:]]
-            text = text.replace(f"%{msg.body.body_substring_keys[i]}%", replacement)
+            text = text.replace(f"%{msg.body_substring_keys[i]}%", replacement)
         self.dispatch("display_notification", title, text)
 
     @register(Language.CraftResponse)
-    async def parse_crafting_response(self, msg: GCMsgProto[struct_messages.CraftResponse]) -> None:
+    async def parse_crafting_response(self, msg: struct_messages.CraftResponse) -> None:
         # this is called after item_receive so no fetching is necessary
-        if msg.body.id_list:  # only empty if crafting failed
-            self.crafted_items.add(msg.body.id_list)
+        if msg.id_list:  # only empty if crafting failed
+            self.crafted_items.add(msg.id_list)
 
     @register(Language.SOCacheSubscriptionCheck)
     async def parse_cache_check(self, _=None) -> None:
@@ -132,8 +132,8 @@ class GCState(GCState_):
         self.backpack = backpack
 
     @register(Language.SOCacheSubscribed)
-    async def parse_cache_subscribe(self, msg: GCMsgProto[sdk.CacheSubscribed]) -> None:
-        for object in msg.body.objects:
+    async def parse_cache_subscribe(self, msg: sdk.CacheSubscribed) -> None:
+        for object in msg.objects:
             if object.type_id == 1:  # backpack
                 await self.update_backpack(
                     *(base.Item().parse(item_data) for item_data in object.object_data),
@@ -148,11 +148,11 @@ class GCState(GCState_):
             self.dispatch("gc_ready")
 
     @register(Language.SOCreate)
-    async def parse_item_add(self, msg: GCMsgProto[sdk.SingleObject]) -> None:
-        if msg.body.type_id != 1 or not self.backpack:
+    async def parse_item_add(self, msg: sdk.SOCreate) -> None:
+        if msg.type_id != 1 or not self.backpack:
             return
 
-        cso_item = base.Item().parse(msg.body.object_data)
+        cso_item = base.Item().parse(msg.object_data)
         await self.update_backpack(cso_item)
         item = utils.get(self.backpack, id=cso_item.id)
         if item is None:  # protect from a broken item
@@ -173,15 +173,15 @@ class GCState(GCState_):
         await self._gc_connected.wait()
 
     @register(Language.SOUpdate)
-    async def handle_so_update(self, msg: GCMsgProto[sdk.SingleObject]) -> None:
-        await self._handle_so_update(msg.body)
+    async def handle_so_update(self, msg: sdk.SOUpdate) -> None:
+        await self._handle_so_update(msg)
 
     @register(Language.SOUpdateMultiple)
-    async def handle_multiple_so_update(self, msg: GCMsgProto[sdk.MultipleObjects]) -> None:
-        for item in msg.body.objects:
+    async def handle_multiple_so_update(self, msg: sdk.MultipleObjects) -> None:
+        for item in msg.objects:
             await self._handle_so_update(item)  # type: ignore  # TODO use a Protocol here
 
-    async def _handle_so_update(self, object: sdk.SingleObject) -> None:
+    async def _handle_so_update(self, object: sdk.SOUpdate | sdk.MultipleObjectsSingleObject) -> None:
         if object.type_id == 1:
             if not self.backpack:
                 return
@@ -208,11 +208,11 @@ class GCState(GCState_):
             log.debug(f"Unknown item {object!r} updated")
 
     @register(Language.SODestroy)
-    async def handle_item_remove(self, msg: GCMsgProto[sdk.SingleObject]) -> None:
-        if msg.body.type_id != 1 or not self.backpack:
+    async def handle_item_remove(self, msg: sdk.SODestroy) -> None:
+        if msg.type_id != 1 or not self.backpack:
             return
 
-        deleted_item = base.Item().parse(msg.body.object_data)
+        deleted_item = base.Item().parse(msg.object_data)
         item = utils.get(self.backpack, id=deleted_item.id)
         if item is None:  # broken item
             return

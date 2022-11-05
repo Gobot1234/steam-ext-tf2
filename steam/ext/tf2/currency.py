@@ -7,7 +7,7 @@ from fractions import Fraction
 from types import FunctionType
 from typing import Any, overload
 
-from typing_extensions import Literal
+from typing_extensions import Literal, Self
 
 from ... import utils
 
@@ -17,7 +17,7 @@ __all__ = ("Metal",)
 class MetalMeta(ABCMeta):
     """Necessitated by Fraction dunders not using self.__class__ for returns. You can ignore this class."""
 
-    def __new__(mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any]) -> type[Metal]:
+    def __new__(mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any]) -> Self:
         for name_, function in Fraction.__dict__.items():
             if (
                 isinstance(function, FunctionType)
@@ -42,7 +42,7 @@ class Metal(Fraction, metaclass=MetalMeta):
     __slots__ = ()
 
     @overload
-    def __new__(cls, value: utils.Intable, /) -> Metal:
+    def __new__(cls, value: utils.Intable, /) -> Metal:  # type: ignore
         ...
 
     def __new__(cls, value, /, *, _normalize: bool = ...) -> Metal:

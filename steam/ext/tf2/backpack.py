@@ -1,24 +1,19 @@
 from __future__ import annotations
-from contextvars import ContextVar
 
 import re
 from collections.abc import Iterable
+from contextvars import ContextVar
 from typing import TYPE_CHECKING, Optional
 
 from betterproto.casing import pascal_case
 
-from ... import utils
-from ...protobufs import GCMsg, GCMsgProto
-from ...trade import BaseInventory, Inventory, Item
+from ...trade import BaseInventory, Item
 from ...user import User
-from .enums import BackpackSortType, ItemFlags, ItemOrigin, ItemQuality, ItemSlot, Language, Mercenary, WearLevel
+from .enums import BackpackSortType, ItemFlags, ItemOrigin, ItemQuality, ItemSlot, Mercenary, WearLevel
+from .protobufs import base, struct_messages
 
 if TYPE_CHECKING:
-    from .protobufs.base import (
-        Item as ItemProto,
-        ItemAttribute as ItemAttributeProto,
-        ItemEquipped as ItemEquippedProto,
-    )
+
     from .state import GCState
     from .types.schema import Schema
 
@@ -81,13 +76,13 @@ class BackpackItem(Item):
     origin: ItemOrigin  #: The item's origin.
     custom_name: str
     custom_description: str
-    attribute: list[ItemAttributeProto]
-    interior_item: ItemProto
+    attribute: list[base.ItemAttribute]
+    interior_item: base.Item
     in_use: bool
     style: int
     original_id: int
     contains_equipped_state: bool
-    equipped_state: list[ItemEquippedProto]
+    equipped_state: list[base.ItemEquipped]
     contains_equipped_state_v2: bool
 
     # the other attribute definitions others not a clue please feel free to PR them
@@ -111,8 +106,7 @@ class BackpackItem(Item):
 
     async def use(self) -> None:
         """Use this item."""
-        msg = GCMsgProto(Language.UseItemRequest, item_id=self.id)
-        await self._state.ws.send_gc_message(msg)
+        await self._state.ws.send_gc_message(base.UseItem(item_id=self.id))
 
     async def open(self, key: BackpackItem) -> None:
         """Open a crate with a ``key``.
@@ -122,13 +116,11 @@ class BackpackItem(Item):
         key
             The key to open the crate with.
         """
-        msg = GCMsg(Language.UnlockCrate, key_id=key.id, crate_id=self.id)
-        await self._state.ws.send_gc_message(msg)
+        await self._state.ws.send_gc_message(struct_messages.OpenCrateRequest( key_id=key.id, crate_id=self.id))
 
     async def delete(self) -> None:
         """Delete this item."""
-        msg = GCMsg(Language.Delete, item_id=self.id)
-        await self._state.ws.send_gc_message(msg)
+        await self._state.ws.send_gc_message(struct_messages.DeleteItemRequest( item_id=self.id))
 
     async def wrap(self, wrapper: BackpackItem) -> None:
         """Wrap this item with the ``wrapper``.
@@ -138,13 +130,11 @@ class BackpackItem(Item):
         wrapper
             The wrapping paper to use.
         """
-        msg = GCMsg(Language.GiftWrapItem, item_id=self.id, wrapping_paper_id=wrapper.id)
-        await self._state.ws.send_gc_message(msg)
+        await self._state.ws.send_gc_message(struct_messages.WrapItemRequest(item_id=self.id, wrapping_paper_id=wrapper.id))
 
     async def unwrap(self) -> None:
         """Unwrap this item."""
-        msg = GCMsg(Language.GiftWrapItem, gift_id=self.id)
-        await self._state.ws.send_gc_message(msg)
+        await self._state.ws.send_gc_message(struct_messages.UnwrapItemRequest(gift_id=self.id))
 
     async def equip(self, mercenary: Mercenary, slot: ItemSlot) -> None:
         """Equip this item to a mercenary.
@@ -173,8 +163,7 @@ class BackpackItem(Item):
 
     async def set_style(self, style: int) -> None:
         """Set the style for this item."""
-        msg = GCMsg(Language.SetItemStyle, item_id=self.id, style=style)
-        await self._state.ws.send_gc_message(msg)
+        await self._state.ws.send_gc_message(base.AdjustItemEquippedState(item_id=self.id, style=style))
 
     async def send_to(self, user: User) -> None:
         """Send this gift-wrapped item to another user.
@@ -184,8 +173,7 @@ class BackpackItem(Item):
         user
             The user to send this gift wrapped item to.
         """
-        msg = GCMsg(Language.DeliverGift, user_id64=user.id64, gift_id=self.id)
-        await self._state.ws.send_gc_message(msg)
+        await self._state.ws.send_gc_message(struct_messages.DeliverGiftRequest(user_id64=user.id64, gift_id=self.id))
 
     # methods similar to https://github.com/danocmx/node-tf2-item-format
 
@@ -226,7 +214,7 @@ class BackpackItem(Item):
                         .replace("Craft_Item", "CraftItem")
                     ]
                 except KeyError:
-                    return tag["internal_name"]
+                    return ItemSlot.__new__(ItemSlot, name=tag["internal_name"], value=-1)  # type: ignore
 
     @property
     def def_index(self) -> int:
@@ -316,11 +304,9 @@ class Backpack(BaseInventory[BackpackItem]):
         items_and_positions
             A list of (item, position) pairs to set the positions for. This is 0 indexed.
         """
-        msg = GCMsgProto(
-            Language.SetItemPositions,
-            item_positions=[{"item_id": item.id, "position": position} for item, position in items_and_positions],
-        )
-        await self._state.ws.send_gc_message(msg)
+        await self._state.ws.send_gc_message(base.SetItemPositions(
+            item_positions=[base.SetItemPositionsItemPosition(item_id=item.id, position=position) for item, position in items_and_positions],
+        ))
 
     async def sort(self, type: BackpackSortType) -> None:
         """Sort this inventory.
@@ -330,5 +316,4 @@ class Backpack(BaseInventory[BackpackItem]):
         type
             The sort type to sort by, only types visible in game are usable.
         """
-        msg = GCMsgProto(Language.SortItems, sort_type=type)
-        await self._state.ws.send_gc_message(msg)
+        await self._state.ws.send_gc_message(base.SortItems(sort_type=type))

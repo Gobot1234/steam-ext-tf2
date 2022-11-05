@@ -7,6 +7,9 @@ from typing import List
 
 import betterproto
 
+from ....protobufs.msg import GCProtobufMessage
+from ..enums import Language
+
 
 @dataclass(eq=False, repr=False)
 class StorePurchaseInitLineItem(betterproto.Message):
@@ -30,41 +33,37 @@ class StorePurchaseInitResponse(betterproto.Message):
     txn_id: int = betterproto.uint64_field(2)
 
 
-@dataclass(eq=False, repr=False)
-class SystemBroadcast(betterproto.Message):
+class SystemBroadcast(GCProtobufMessage, msg=Language.SystemMessage):
     message: str = betterproto.string_field(1)
 
 
-@dataclass(eq=False, repr=False)
-class ClientHello(betterproto.Message):
+class ClientHello(GCProtobufMessage, msg=Language.ClientHello):
     version: int = betterproto.uint32_field(1)
 
 
-@dataclass(eq=False, repr=False)
-class ServerHello(betterproto.Message):
+class ServerHello(GCProtobufMessage, msg=Language.ServerHello):
     version: int = betterproto.uint32_field(1)
 
 
-@dataclass(eq=False, repr=False)
-class ClientWelcome(betterproto.Message):
+class ClientWelcome(GCProtobufMessage, msg=Language.ClientWelcome):
     version: int = betterproto.uint32_field(1)
     game_data: bytes = betterproto.bytes_field(2)
     txn_country_code: str = betterproto.string_field(3)
 
 
 @dataclass(eq=False, repr=False)
-class ServerWelcome(betterproto.Message):
+class ServerWelcome(GCProtobufMessage, msg=Language.ServerWelcome):
     min_allowed_version: int = betterproto.uint32_field(1)
     active_version: int = betterproto.uint32_field(2)
 
 
 @dataclass(eq=False, repr=False)
-class ClientGoodbye(betterproto.Message):
+class ClientGoodbye(GCProtobufMessage, msg=Language.ClientGoodbye):
     reason: int = betterproto.int64_field(1)
 
 
 @dataclass(eq=False, repr=False)
-class ServerGoodbye(betterproto.Message):
+class ServerGoodbye(GCProtobufMessage, msg=Language.ServerGoodbye):
     reason: int = betterproto.int64_field(1)
 
 
@@ -249,15 +248,13 @@ class Item(betterproto.Message):
     contains_equipped_state_v2: bool = betterproto.bool_field(19)
 
 
-@dataclass(eq=False, repr=False)
-class AdjustItemEquippedState(betterproto.Message):
+class AdjustItemEquippedState(GCProtobufMessage, msg=Language.AdjustItemEquippedState):
     item_id: int = betterproto.uint64_field(1)
     new_class: int = betterproto.uint32_field(2)
     new_slot: int = betterproto.uint32_field(3)
 
 
-@dataclass(eq=False, repr=False)
-class SortItems(betterproto.Message):
+class SortItems(GCProtobufMessage, msg=Language.SortItems):
     sort_type: int = betterproto.uint32_field(1)
 
 
@@ -288,8 +285,7 @@ class StoreGetUserDataResponse(betterproto.Message):
     popular_items: List[int] = betterproto.uint32_field(10)
 
 
-@dataclass(eq=False, repr=False)
-class UpdateItemSchema(betterproto.Message):
+class UpdateItemSchema(GCProtobufMessage, msg=Language.UpdateItemSchema):
     items_game: bytes = betterproto.bytes_field(1)
     item_schema_version: int = betterproto.fixed32_field(2)
     items_game_url: str = betterproto.string_field(3)
@@ -301,8 +297,7 @@ class Error(betterproto.Message):
     error_text: str = betterproto.string_field(1)
 
 
-@dataclass(eq=False, repr=False)
-class RequestInventoryRefresh(betterproto.Message):
+class RequestInventoryRefresh(GCProtobufMessage, msg=Language.RequestInventoryRefresh):
     pass
 
 
@@ -317,8 +312,7 @@ class ReplicateConVars(betterproto.Message):
     convars: List["ConVarValue"] = betterproto.message_field(1)
 
 
-@dataclass(eq=False, repr=False)
-class UseItem(betterproto.Message):
+class UseItem(GCProtobufMessage, msg=Language.UseItemRequest):
     item_id: int = betterproto.uint64_field(1)
     target_steam_id: int = betterproto.fixed64_field(2)
     gift_potential_targets: List[int] = betterproto.uint32_field(3)
@@ -360,8 +354,7 @@ class SetPresetItemPosition(betterproto.Message):
     item_id: int = betterproto.uint64_field(4)
 
 
-@dataclass(eq=False, repr=False)
-class SetItemPositions(betterproto.Message):
+class SetItemPositions(GCProtobufMessage, msg=Language.SetItemPositions):
     item_positions: List["SetItemPositionsItemPosition"] = betterproto.message_field(1)
 
 
@@ -417,8 +410,7 @@ class NameItemNotification(betterproto.Message):
     item_name_custom: str = betterproto.string_field(3)
 
 
-@dataclass(eq=False, repr=False)
-class ClientDisplayNotification(betterproto.Message):
+class ClientDisplayNotification(GCProtobufMessage, msg=Language.ClientDisplayNotification):
     notification_title_localization_key: str = betterproto.string_field(1)
     notification_body_localization_key: str = betterproto.string_field(2)
     body_substring_keys: List[str] = betterproto.string_field(3)
