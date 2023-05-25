@@ -1,5 +1,7 @@
 # steam-ext-tf2
 
+# NOTE: This library is now included in steam.py V1 and is no longer updated here
+
 An extension to interact with the Team Fortress 2 Game Coordinator for 
 [steam.py](https://github.com/Gobot1234/steam.py). `tf2.Client` and `tf2.Bot` are `steam.Client` and `commands.Bot` 
 subclasses respectively, so whatever you can do with `steam`/`ext.commands` you can do with `ext.tf2`
